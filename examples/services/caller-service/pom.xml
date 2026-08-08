@@ -16,7 +16,7 @@
   <version>0.1.0</version>
   <name>caller-service</name>
   <description>
-    verify framework example service — triggers a call to receiver-service,
+    Evident example service — triggers a call to receiver-service,
     synchronously or asynchronously, to exercise the framework's trigger,
     polling, and correlation mechanisms. Not part of the published framework.
   </description>

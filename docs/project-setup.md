@@ -21,7 +21,7 @@ way (§ CLI argument parsing).
 
 | Concern | Choice | Pinned version | Why | Rejected |
 |---|---|---|---|---|
-| Language | TypeScript | **7.0.2** | Already Decision 3 | Java/JVM |
+| Language | TypeScript | **6.0.3** (not 7.0.2 — see note) | Already Decision 3 | Java/JVM |
 | Runtime | Node.js | **24.x** (current Active LTS) | Higher than the bare "fetch works since 18" floor referenced in architecture.md Decision 14 — that's the minimum for one feature, not our target baseline. Targeting current Active LTS rather than the old Node 18 floor or the non-LTS v26 current-release line, since a library's baseline should track the version consumers are actually deployed on. | Node 18 (old — only relevant as fetch's minimum, not a real target); Node 26 (not yet LTS) |
 | Build | tsdown | **0.22.14** | tsup successor, actively maintained (§ below) | tsup (unmaintained), raw `tsc` |
 | Test runner | Vitest | **4.1.10** | Best DX for this project's non-trivial async logic | `node:test`, Jest |
@@ -33,6 +33,16 @@ way (§ CLI argument parsing).
 | Assertion comparison syntax | expect (standalone) | **30.4.1** | Decision 17 — mature matcher vocabulary, not reinvented | Playwright's auto-retrying `expect` variant |
 | Package manager | pnpm | **11.20.0** | Strict `node_modules` (phantom-dependency protection — matters once `framework` is published), more mature native workspace protocol than npm's | npm workspaces |
 | Task orchestration | — (none yet) | — | Turborepo would be real overhead with no payoff at one real workspace package (`examples` is deliberately not a member — see §2). Add later if the package count grows enough to need it. | Turborepo now |
+
+**TypeScript version note:** npm's `latest` tag for `typescript` is `7.0.2` —
+but 7.0 is Microsoft's ported-to-Go compiler rewrite, a different
+implementation, not a routine version bump. `typescript-eslint@8.66.0`
+(itself genuinely latest) declares its peer range as `>=4.8.4 <6.1.0` —
+confirmed via `pnpm peers check` after install, not assumed — so it hasn't
+caught up to 7.x yet. Using **6.0.3**, the last release on the original
+codebase (explicitly positioned by the TypeScript team as the "bridge"
+version), rather than break Decision 17's type-aware linting for the sake
+of a version number. Revisit once typescript-eslint supports 7.x.
 
 **Lint/format reasoning (ESLint+Prettier+typescript-eslint over Biome):**
 operationally familiar to whoever maintains this, better-represented in any
@@ -66,14 +76,14 @@ dev-tools/                     (repo root — already git-init'd)
 │   │   ├── config/            (Layer 1 — target resolution, .env)
 │   │   ├── flow/              (Layer 2 — defineFlow)
 │   │   ├── evidence/          (Layer 3 — poll(), evidence collectors)
-│   │   ├── cli/                (Layer 4 — verify run / verify list)
+│   │   ├── cli/                (Layer 4 — evident run / evident list)
 │   │   └── index.ts
 │   └── tests/
 └── examples/                  (new — V1 proof-of-concept flow specs, private)
     ├── package.json           (depends on "framework": "link:../framework" —
     │                            a plain local-path reference, NOT the pnpm
     │                            workspace protocol)
-    ├── verify.config.ts
+    ├── evident.config.ts
     └── *.flow.ts
 ```
 

@@ -1,4 +1,4 @@
-# verify
+# Evident
 
 AI-driven multi-service verification framework — built to be used *by*
 coding agents (Claude Code and others) as a tool, not to embed agent/LLM
@@ -38,9 +38,11 @@ looks like it belongs to a later layer.
 - `poll()` and anything using `expectBy`/`timeout`/`delay`: test with
   Vitest's `vi.useFakeTimers()`, not real sleeps. A suite that actually
   waits 15s per timeout case gets slow, then gets skipped.
-- Bash commands: **pending** — `framework/package.json` must define
-  `typecheck`, `lint`, and `test` scripts when the package is scaffolded;
-  fill in the exact commands here once they exist.
+- From `framework/`: `pnpm run typecheck`, `pnpm run lint`, `pnpm run test`
+  (`pnpm run build` before publishing or checking bundle output). The
+  `PostToolUse` hook (`.claude/hooks/check-framework.sh`) already runs
+  typecheck/lint/test automatically on edits to `framework/src/**` — these
+  are for running manually or after touching config/tests outside `src/`.
 
 ## Reviewing this codebase
 

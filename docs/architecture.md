@@ -73,7 +73,7 @@ Resolves, per service, where it currently is (local or deployed) and how to
 reach it — base URL, log source, correlation mode.
 
 ```yaml
-# verify.config.ts (executable, not static — needs env-var/branching logic)
+# evident.config.ts (executable, not static — needs env-var/branching logic)
 defaultTarget: deployed
 
 services:
@@ -88,13 +88,13 @@ services:
       correlation: trace   # per-service, can differ by environment too
 ```
 
-- **Secrets split:** `verify.config.ts` (committed, structure only) +
+- **Secrets split:** `evident.config.ts` (committed, structure only) +
   `.env`/`.env.example` (gitignored, real values) + `.env.local`
   (gitignored, per-developer overrides — ports, local paths). AWS access
   prefers a named profile (`AWS_PROFILE`) over static keys where possible.
   CI sources secrets from its own platform secret store, not a checked-in
   file — same `process.env` interface either way.
-- **Per-run override:** `verify run <flow> --local enrichment-service`,
+- **Per-run override:** `evident run <flow> --local enrichment-service`,
   mirroring `playwright test --project`.
 - Decided against a centralized secrets manager (AWS Secrets Manager/SSM)
   for now — plain `.env` is enough at current scale; revisit if credential
@@ -224,7 +224,7 @@ Per-service config field (§3): `correlation: trace | heuristic`.
 
 ## 6. Layer 4 — CLI / Runner
 
-Deterministic execution — `verify run <flow>`. No LLM, no MCP dependency,
+Deterministic execution — `evident run <flow>`. No LLM, no MCP dependency,
 this is what CI/PR-gate calls directly. Every run, pass or fail, produces a
 **run bundle**.
 
@@ -232,7 +232,7 @@ this is what CI/PR-gate calls directly. Every run, pass or fail, produces a
 deliberately distinct in naming)
 
 A self-contained artifact per run (V1: written to local disk, e.g.
-`.verify/runs/<runId>.json` — no live pointers back to services, so it's
+`.evident/runs/<runId>.json` — no live pointers back to services, so it's
 still meaningful after the fact, to a different agent session, or handed to
 a teammate):
 
@@ -290,7 +290,7 @@ Deliberately narrow, per "small features first, expand based on need":
 
 **In scope:** 2+ services, **local-only**, REST trigger + log evidence,
 correlation mechanism (trace-ID + explicit-field heuristic fallback) proven
-end-to-end, run bundle capture, CLI (`verify run`) — no MCP yet, run by hand.
+end-to-end, run bundle capture, CLI (`evident run`) — no MCP yet, run by hand.
 
 **Explicitly deferred:** Mongo/Neo4j evidence, CloudWatch/deployed targets,
 MCP surface, centralized run-bundle storage, WireMock-based outbound test
@@ -321,12 +321,12 @@ foundation that might be wrong.
 | 12 | Run bundle content | Full raw evidence, not just matched snippets | Matched snippets only | Enables anomaly review and false-positive/weak-assertion detection |
 | 13 | Run bundle storage (V1) | Local disk | Centralized store | V1 is local-only anyway; centralization is a fast-follow, not a blocker |
 | 14 | HTTP trigger mechanism (`trigger.api()`) | Native `fetch` (Node 18+, zero deps) | Playwright's `request` context; axios | Playwright's package pulls down real browser binaries on install — unnecessary weight for a pure HTTP call. Playwright stays reserved for actual UI-driven triggers only, where it's the right and largely uncontested choice. Net effect: V1 needs zero Playwright dependency. |
-| 15 | `ask-first` enforcement | `verify run` refuses unless `--confirm` is passed | Interactive CLI prompt | No LLM/agent lives inside the CLI to "ask" anyone (Principle 2) — `--confirm` makes the caller (human or agent) responsible for having already decided |
+| 15 | `ask-first` enforcement | `evident run` refuses unless `--confirm` is passed | Interactive CLI prompt | No LLM/agent lives inside the CLI to "ask" anyone (Principle 2) — `--confirm` makes the caller (human or agent) responsible for having already decided |
 | 16 | CI exit contract | Exit 0 only if all assertions passed (slow-but-passed still 0, per Decision 7); exit 1 on any failure; run bundle path always printed to stdout | — | Standard Unix convention; lets CI/the AI-review skill find the bundle without extra plumbing |
 | 17 | Assertion comparison syntax | Standalone `expect` package (the one Jest/Playwright are both built on) used *inside* `poll()` | Playwright's own auto-retrying `expect(locator)...`; a custom-built comparison DSL | `expect`'s matcher vocabulary (`.toBe`, `.toEqual`, `.toContain`...) is mature, ubiquitous, and already fluent to any AI/developer — reinventing comparison syntax would be pure duplication. Playwright's *auto-retrying* variant doesn't transfer: it's DOM-locator-specific and has one timeout, not our two-tier model — `poll()` still owns all retry/timing semantics, `expect` only supplies the comparison. |
 | 18 | Heuristic correlation search algorithm | Bound search to evidence timestamped ≥ trigger-fire time, require exact declared value match | Automatic fuzzy/timing-proximity matching | Kills stale-match false positives from append-only local logs outright; narrows (not eliminates) substring-collision risk. Maps directly onto how CloudWatch Logs Insights queries already work (time-range-scoped by nature). |
 | 19 | Trigger call retry | No auto-retry by default; opt-in per trigger call (`idempotent: true, retries: n`) | Auto-retry always; never retryable at all | Many trigger endpoints are non-idempotent (create a job, submit a payment) — silent auto-retry risks a real duplicate side effect. Failure is reported distinctly as "trigger failure" vs. "assertion failure" in the run bundle. |
-| 20 | Repo layout | One repo (this one), split internally: `/framework` (library source — what eventually gets open-sourced) vs. `/examples` (V1 proof-of-concept flow specs, private) | Framework embedded inside a service repo; specs and framework mixed with no boundary | Specs are company-specific and can't ship with an open-sourced framework; keeping the boundary clean from day one makes a later split mechanical instead of a rewrite. `git init` done, `.gitignore` excludes `research/` (third-party reference clones — must never enter this repo's history), `.env`/`.env.local`, and `.verify/` (local run bundles). |
+| 20 | Repo layout | One repo (this one), split internally: `/framework` (library source — what eventually gets open-sourced) vs. `/examples` (V1 proof-of-concept flow specs, private) | Framework embedded inside a service repo; specs and framework mixed with no boundary | Specs are company-specific and can't ship with an open-sourced framework; keeping the boundary clean from day one makes a later split mechanical instead of a rewrite. `git init` done, `.gitignore` excludes `research/` (third-party reference clones — must never enter this repo's history), `.env`/`.env.local`, and `.evident/` (local run bundles). |
 | 21 | Spec file naming/organization | `*.flow.ts` suffix (glob-discovered, recursive); directory structure fully unrestricted, no recommended convention even as a loose default | Mandated folder structure (by service/domain); safety level or other metadata encoded into filename | A multi-service flow doesn't cleanly belong to one folder — matches Guiding Principle 1 (pluggable, not prescriptive). Encoding metadata in filenames would create a second source of truth alongside the static metadata block (Decision 4), able to drift out of sync. |
 | 22 | Run bundle format versioning | Stamp `schemaVersion` into every bundle from day one; defer all migration/compatibility handling | No versioning; full migration tooling now | Adding a version field retroactively is impossible for bundles already written; adding it now costs nothing. Migration logic has no V1 justification yet. |
 
@@ -335,9 +335,9 @@ foundation that might be wrong.
 ## 11. Open Branches (not yet resolved)
 
 - Concrete heuristic-correlation search algorithm (flagged as genuinely hard — §5)
-- CLI command surface beyond `verify run`
+- CLI command surface beyond `evident run`
 - MCP tool list, finalized (§7 names are provisional)
-- Repo/package layout and distribution (`@org/verify`?)
+- Repo/package layout and distribution (`@org/evident`?)
 - Spec file naming/organization conventions
 - Trigger retry/idempotency semantics (what happens if the trigger call itself fails or times out)
 - Run bundle format versioning (so old bundles stay readable as the framework evolves)

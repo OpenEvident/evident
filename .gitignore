@@ -12,6 +12,7 @@ CLAUDE.local.md
 # Node
 node_modules/
 dist/
+coverage/
 
 # V1 run bundles (local artifacts, not source)
-.verify/
+.evident/

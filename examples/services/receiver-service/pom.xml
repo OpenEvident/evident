@@ -16,7 +16,7 @@
   <version>0.1.0</version>
   <name>receiver-service</name>
   <description>
-    verify framework example service — receives calls from caller-service,
+    Evident example service — receives calls from caller-service,
     delays by a configurable amount to simulate processing time, and logs
     completion. Not part of the published framework.
   </description>

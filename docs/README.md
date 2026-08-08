@@ -1,6 +1,6 @@
 # Documentation
 
-An AI-driven verification framework for multi-service flows — Spring Boot
+**Evident** — an AI-driven verification framework for multi-service flows — Spring Boot
 services connected via REST, Kafka, webhooks, and bulk processing, tested
 end-to-end (API responses, database state, logs) rather than in isolated
 unit tests. Built to be used *by* coding agents (Claude Code and others) as
@@ -25,13 +25,18 @@ dev-tools/
 ├── docs/          you are here
 ├── research/       cloned reference repos used during research — not part of
 │                    this project's own code, gitignored, never committed
-├── framework/      the library itself (once scaffolded)
-└── examples/       V1 proof-of-concept flow specs (once scaffolded)
+├── framework/      the library itself — scaffolded, tooling verified, core
+│                    primitives (poll/expect/defineFlow) not yet implemented
+└── examples/       V1 proof-of-concept — two working example Spring Boot
+                     services (caller-service, receiver-service) proven
+                     end-to-end; flow specs not yet written
 ```
 
 ## Status
 
 Requirements and architecture are resolved for V1 (multi-service, local-only,
-REST trigger, log evidence, correlation proven). Implementation has not
-started. See architecture.md §9 for exact V1 scope and §11 for what's
-deliberately still undecided.
+REST trigger, log evidence, correlation proven). `framework/` is scaffolded
+(build/lint/typecheck/test all verified working) and the two example
+services are built and verified. Core framework implementation
+(`poll`/`expect`/`defineFlow`/CLI) has not started. See architecture.md §9
+for exact V1 scope and §11 for what's deliberately still undecided.
