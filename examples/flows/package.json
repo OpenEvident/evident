@@ -1,0 +1,9 @@
+{
+  "name": "evident-examples",
+  "private": true,
+  "type": "module",
+  "description": "Proof-of-concept flow specs — not a workspace member, not part of the published framework. See docs/architecture.md Decision 20.",
+  "dependencies": {
+    "evident": "link:../../framework"
+  }
+}
