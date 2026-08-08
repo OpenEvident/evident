@@ -1,0 +1,17 @@
+# Third-party reference clones — never part of this repo's history
+research/
+
+# Secrets — see docs/architecture.md §3
+.env
+.env.local
+
+# Personal/session-specific Claude Code config — not shared history
+.claude/settings.local.json
+CLAUDE.local.md
+
+# Node
+node_modules/
+dist/
+
+# V1 run bundles (local artifacts, not source)
+.verify/
