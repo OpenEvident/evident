@@ -276,6 +276,17 @@ Two distinct jobs, both matter:
    meaningful, catching false positives (a test that would pass even if the
    feature were broken).
 
+**Circular-verification check (part of job 2):** flag any assertion whose
+"expected" value was derived by re-running the same transformation logic
+the flow itself exercises, then compared only against that flow's own
+stored output. That proves the code did what the code does, not that the
+code is correct. A meaningful assertion needs its expected value sourced
+independently of the code path under test — the trigger's own input
+payload, a fixed fixture value, or an external reference — never
+re-derived from the system being verified. This is the specific failure
+mode "test-quality review" exists to catch, not just a general reminder to
+have assertions.
+
 **Invocation policy:** run bundle capture is always-on (free, deterministic).
 AI review of it is conditional — always on failure (root-cause diagnosis is
 exactly where it earns its keep), always in self-check/on-demand mode (agent
@@ -343,3 +354,8 @@ foundation that might be wrong.
 - Run bundle format versioning (so old bundles stay readable as the framework evolves)
 - WireMock adoption specifics for outbound test doubles
 - Rollout plan for attaching the OTel agent across existing services
+- Requirement-to-Flow generation — a future layer that drafts a starting
+  `defineFlow` spec from a ticket/PRD, entirely above the framework (AI
+  Review Layer territory, same "outside, never embedded" rule as Decision
+  10) — deliberately not designed until V1 proves the execution mechanism
+  it would be generating specs *for*

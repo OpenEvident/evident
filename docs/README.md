@@ -14,6 +14,7 @@ not as an agent or harness itself.
 | [requirements.md](./requirements.md) | What must this system do, and why? Product-level scope, before any technical decisions. |
 | [research.md](./research.md) | What already exists (Tracetest, Karate, WireMock, and others), verified against real source — so the architecture builds on proven patterns instead of reinventing them. |
 | [architecture.md](./architecture.md) | How it's actually built: the layered design, every resolved decision with its rejected alternatives and rationale, and what's still open. **Start here** if you only read one document. |
+| [flow-model.md](./flow-model.md) | The spec-authoring vocabulary — Flows, Flow Suites, hooks, fixtures, sequential/parallel/serial execution, locks — verified against Playwright's own source, borrowed deliberately where the problem is the same shape and diverged deliberately where it isn't. |
 | [project-setup.md](./project-setup.md) | Tech stack, folder structure, and how the repo is scaffolded to be developed effectively by Claude Code specifically. |
 
 A [visual walkthrough](https://claude.ai/code/artifact/1fcc61d2-7011-4525-a88a-42c25b956292) of the architecture — the layered stack, a run's execution sequence, the two-tier timeout model, and the two correlation modes side by side — complements architecture.md for anyone who wants the shape of the system before the prose.
@@ -29,7 +30,9 @@ dev-tools/
 │                    primitives (poll/expect/defineFlow) not yet implemented
 └── examples/       V1 proof-of-concept — two working example Spring Boot
                      services (caller-service, receiver-service) proven
-                     end-to-end; flow specs not yet written
+                     end-to-end, plus flow spec sketches (not yet runnable —
+                     see examples/flows/README.md) validating the API shape
+                     before framework/ implements it for real
 ```
 
 ## Status
@@ -37,6 +40,9 @@ dev-tools/
 Requirements and architecture are resolved for V1 (multi-service, local-only,
 REST trigger, log evidence, correlation proven). `framework/` is scaffolded
 (build/lint/typecheck/test all verified working) and the two example
-services are built and verified. Core framework implementation
+services are built and verified. Flow spec sketches exist in
+`examples/flows/` (not yet runnable) to validate the spec-authoring API
+before it's implemented for real. Core framework implementation
 (`poll`/`expect`/`defineFlow`/CLI) has not started. See architecture.md §9
-for exact V1 scope and §11 for what's deliberately still undecided.
+for exact V1 scope, §11 for what's deliberately still undecided, and
+flow-model.md for the suite/hooks/fixtures design still being resolved.

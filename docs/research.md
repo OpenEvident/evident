@@ -3,11 +3,10 @@
 **Status:** Complete — findings below informed [architecture.md](./architecture.md); see its Decision Log (§10) for what was ultimately decided and why
 **Last updated:** 2026-08-08
 
-> Repos cloned and read directly for this research: `kubeshop/tracetest`,
-> `karatelabs/karate`, `wiremock/wiremock-webhooks-extension` — see
-> `research/` in this project. Claims below marked "verified" were confirmed
-> against actual source/examples in these clones or primary vendor docs, not
-> secondary summaries.
+> Sources checked directly for this research: `kubeshop/tracetest`,
+> `karatelabs/karate`, `wiremock/wiremock-webhooks-extension`. Claims below
+> marked "verified" were confirmed against actual source/examples or
+> primary vendor docs, not secondary summaries.
 
 Purpose: before designing this framework, establish what already exists, what's
 genuinely reusable, and where the real gap is — so the architecture builds on
@@ -31,7 +30,7 @@ cross-system assertions on a distributed flow, durable and CI-runnable. Malabi
 (aspecto-io) is a smaller sibling project doing the same thing for JS
 services.
 
-**Verified directly from source** (cloned `kubeshop/tracetest`):
+**Verified directly from source** (`kubeshop/tracetest`):
 
 - **It already handles almost exactly our Kafka scenario.** The
   `examples/tracetesting-event-driven-systems` example is a REST call →
@@ -81,7 +80,7 @@ separate client/assertion/mock libraries to glue together. Relevant as a
 readability reference for the assertion library (Layer 3), not as something
 to adopt wholesale.
 
-**Verified directly from source** (cloned `karatelabs/karate`): confirmed the
+**Verified directly from source** (`karatelabs/karate`): confirmed the
 DSL is exactly as terse as advertised — e.g. a full scenario is `* url
 'http://localhost:9000/cats'` / `* method get`. Readable, but this
 terseness comes from Karate owning the entire execution model; it's a good
@@ -117,7 +116,7 @@ webhooks/callbacks in response to a matched request, records real traffic to
 generate stubs, simulates errors/latency. This is almost certainly the
 concrete mechanism behind "we won't make real outbound calls."
 
-**Verified directly from source** (cloned `wiremock/wiremock-webhooks-extension`):
+**Verified directly from source** (`wiremock/wiremock-webhooks-extension`):
 `WebhooksAcceptanceTest.java` shows the real, simple shape — a `Webhooks`
 extension is registered on the mock server (`.extensions(webhooks)`), a
 `webhook(...)` builder is attached to a stub, and when that stub is matched,
