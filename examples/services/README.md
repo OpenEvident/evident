@@ -2,7 +2,7 @@
 
 Two minimal Spring Boot services that exist to be verified *against* —
 not part of the published framework (`/framework`), not part of any real
-product. They're the "system under test" the V1 flow specs in `/examples`
+product. They're the "system under test" the flow specs in `/examples`
 point at, built to exercise every mechanism the correlation proof needs:
 sync and async calls, configurable delay (pass / slow-flagged / fail /
 timeout), trigger failure, and both correlation modes.
