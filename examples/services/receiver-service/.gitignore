@@ -1,0 +1,13 @@
+target/
+*.class
+
+# Runtime logs (see docs/architecture.md — evidence source, not source code)
+logs/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
