@@ -24,7 +24,9 @@ flows/
 ├── timeout.flow.ts         # grouped: timeoutPass / timeoutSlow / timeoutFail
 ├── correlation.flow.ts     # grouped: heuristicMode / traceMode
 ├── safety.flow.ts          # grouped: askFirst / idempotentRetry / triggerFailure
-└── advanced.flow.ts        # grouped: asyncCallback / bulkLoop / mixedEvidenceCustomPoll
+├── advanced.flow.ts        # grouped: asyncCallback / bulkLoop / mixedEvidenceCustomPoll
+├── lifecycle.flow.ts       # grouped: seedBatch / verifyBatch — hooks, fixtures, serial mode
+└── concurrency.flow.ts     # grouped: smokeCheck / rateLimitedCall / retryableBulkStep / pendingInvestigation
 ```
 
 Modeled after a real internal Playwright API-testing project's shape
@@ -48,6 +50,8 @@ something the framework enforces.
 | `advanced.flow.ts` | `asyncCallback` | The `delay` option, and asserting on the trigger's own response directly |
 | `advanced.flow.ts` | `bulkLoop` | Why `defineFlow` needs a real imperative body, not a static list (Decision 4) — a genuine loop over N records, each with its own response assertion |
 | `advanced.flow.ts` | `mixedEvidenceCustomPoll` | The generic `poll()` primitive combining evidence from two services in one condition (Decision 8) |
+| `lifecycle.flow.ts` | `seedBatch` / `verifyBatch` | Hooks (`beforeAll`/`afterAll`/`beforeEach`/`afterEach`), Suite-scoped and Flow-scoped Fixtures, an automatic Fixture, and serial execution mode with state shared via a Fixture rather than closures (flow-model.md §4-6, §9.4) |
+| `concurrency.flow.ts` | `smokeCheck` / `rateLimitedCall` / `retryableBulkStep` / `pendingInvestigation` | Parallel execution mode, named locks, `tags`, Flow-level `timeout`/`retries`, and `skip` (flow-model.md §6-7, §10.1-10.3, §10.6) |
 
 ## What this exercise surfaced — real open questions, not yet resolved
 
@@ -94,3 +98,15 @@ that reasoning about the design in the abstract didn't.
    flows. Something like `evident run timeout.flow.ts --name timeoutSlow`
    (mirroring Playwright's `--grep`) is the likely shape, but this wasn't
    part of the original CLI design and needs to be added to it.
+7. **Fixture dependency resolution isn't specified.** `lifecycle.flow.ts`'s
+   `recordIdFixture` declares `deps: batchFixture` and expects its resolved
+   value as `setup`'s first argument — a single fixture, by object
+   reference. Whether a Fixture can depend on more than one other Fixture,
+   and how `run()`'s `fixtures` param ends up typed as the merged shape of
+   everything a Flow requests, is unresolved.
+8. **Whether `configureSuite`'s mode applies uniformly to every Flow
+   exported from that file is assumed, not decided.** `lifecycle.flow.ts`
+   is entirely serial and `concurrency.flow.ts` entirely parallel because
+   every Flow in each file needs the same mode — but nothing prevents a
+   file from mixing Flows that want different modes, and there's no syntax
+   yet for that case.
