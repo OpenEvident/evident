@@ -33,6 +33,22 @@ looks like it belongs to a later layer.
 - If a test doesn't pass, fix the root cause or stop and report why. Don't
   loosen the assertion or skip it to get green.
 
+## Comments
+
+Default to no comments. Two things earn one, both as a proper JSDoc
+`/** ... */` block positioned above the declaration, never stacked `//`
+lines:
+
+- A non-obvious **why** — a hidden constraint, a subtle invariant, the
+  reasoning behind a design decision.
+- **Public API surface** in `framework/src` — exported functions, types,
+  and classes get param/return/`@throws` documentation, since that's what
+  IDE hover and consuming code see. Internal/unexported code doesn't need
+  this.
+
+Never comment WHAT the code does when the code already reads that clearly,
+and never reference the task/fix that produced it.
+
 ## Testing
 
 - `poll()` and anything using `expectBy`/`timeout`/`delay`: test with
