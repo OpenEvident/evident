@@ -4,6 +4,7 @@
   "description": "AI-driven multi-service verification framework — used by coding agents as a tool, not an agent itself.",
   "type": "module",
   "private": true,
+  "license": "UNLICENSED",
   "engines": {
     "node": ">=24"
   },

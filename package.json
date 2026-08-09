@@ -1,5 +1,6 @@
 {
   "name": "evident-monorepo",
   "private": true,
+  "license": "UNLICENSED",
   "packageManager": "pnpm@11.20.0"
 }

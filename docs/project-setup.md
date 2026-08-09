@@ -69,7 +69,7 @@ dev-tools/                     (repo root — already git-init'd)
 │   ├── skills/
 │   ├── agents/
 │   └── rules/
-├── framework/                 (new — the library; what eventually gets open-sourced)
+├── framework/                 (new — the library; proprietary, UNLICENSED — Decision 20)
 │   ├── package.json
 │   ├── tsconfig.json
 │   ├── src/
