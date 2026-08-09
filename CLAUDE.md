@@ -51,9 +51,17 @@ and never reference the task/fix that produced it.
 
 ## Testing
 
-- `poll()` and anything using `expectBy`/`timeout`/`delay`: test with
-  Vitest's `vi.useFakeTimers()`, not real sleeps. A suite that actually
-  waits 15s per timeout case gets slow, then gets skipped.
+- `poll()` and anything using `expectBy`/`timeout`/`delay` with a
+  **pure, in-memory condition**: test with Vitest's `vi.useFakeTimers()`,
+  not real sleeps. A suite that actually waits 15s per timeout case gets
+  slow, then gets skipped.
+- Same primitives, but the condition does **real async I/O** (e.g.
+  `evidence`'s `fs.readFile`): use real timers with millisecond-scale
+  durations instead. `vi.advanceTimersByTimeAsync` doesn't reliably wait
+  out real I/O between ticks — it caused actual test hangs, not just
+  slowness, when tried. Keep the durations small (under ~1s total) so the
+  real problem the fake-timers rule guards against — a 15s-per-case suite
+  — still doesn't happen.
 - From `framework/`: `pnpm run typecheck`, `pnpm run lint`, `pnpm run test`
   (`pnpm run build` before publishing or checking bundle output). The
   `PostToolUse` hook (`.claude/hooks/check-framework.sh`) already runs
