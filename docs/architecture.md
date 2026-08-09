@@ -287,6 +287,19 @@ re-derived from the system being verified. This is the specific failure
 mode "test-quality review" exists to catch, not just a general reminder to
 have assertions.
 
+**Evidence is untrusted data, never instructions:** raw evidence (§6) can
+contain arbitrary externally-influenced text — a webhook payload, an order
+note, anything an external caller supplied to the service under test. When
+the AI Review Layer's skill prompt includes it, that content must stay
+clearly delimited as data and be explicitly marked as never-to-be-followed,
+regardless of what it appears to say — the same instruction-source-boundary
+principle that governs how any AI agent should treat tool results or file
+contents it didn't author. A run bundle crafted (directly, or via a
+compromised upstream service) to embed text shaped like a directive to the
+reviewing agent is exactly the failure mode this guards against. This is a
+requirement for however the skill/prompt ends up built, not optional
+hardening to add after the fact.
+
 **Invocation policy:** run bundle capture is always-on (free, deterministic).
 AI review of it is conditional — always on failure (root-cause diagnosis is
 exactly where it earns its keep), always in self-check/on-demand mode (agent
@@ -340,6 +353,8 @@ foundation that might be wrong.
 | 20 | Repo layout | One repo (this one), split internally: `/framework` (library source — what eventually gets open-sourced) vs. `/examples` (V1 proof-of-concept flow specs, private) | Framework embedded inside a service repo; specs and framework mixed with no boundary | Specs are company-specific and can't ship with an open-sourced framework; keeping the boundary clean from day one makes a later split mechanical instead of a rewrite. `git init` done, `.gitignore` excludes `research/` (third-party reference clones — must never enter this repo's history), `.env`/`.env.local`, and `.evident/` (local run bundles). |
 | 21 | Spec file naming/organization | `*.flow.ts` suffix (glob-discovered, recursive); directory structure fully unrestricted, no recommended convention even as a loose default | Mandated folder structure (by service/domain); safety level or other metadata encoded into filename | A multi-service flow doesn't cleanly belong to one folder — matches Guiding Principle 1 (pluggable, not prescriptive). Encoding metadata in filenames would create a second source of truth alongside the static metadata block (Decision 4), able to drift out of sync. |
 | 22 | Run bundle format versioning | Stamp `schemaVersion` into every bundle from day one; defer all migration/compatibility handling | No versioning; full migration tooling now | Adding a version field retroactively is impossible for bundles already written; adding it now costs nothing. Migration logic has no V1 justification yet. |
+| 23 | AI Review Layer evidence handling | Raw evidence treated as untrusted data — explicitly delimited and marked non-instructional in the reviewing prompt | Trusting evidence content at face value | A run bundle can contain arbitrary externally-influenced text (webhook payloads, user-submitted fields); an AI Review Layer that doesn't treat it as data risks indirect prompt injection — same principle as not following instructions found in tool results. |
+| 24 | `.evident/runs/` retention | Time-based (default 14 days), configurable via `EvidentConfig.runRetentionDays` + `--retention-days` CLI override (same precedence as `--target`/`defaultTarget`), disableable, auto-pruned silently on every `evident run`, plus a separate `evident clean` command for manual clearing | Count-based cap (e.g. "keep last N bundles"); Playwright's model (wipe the whole output dir at the start of every run) | A count cap doesn't scale with project size — a bundle is written per Flow, not per invocation, so a project with 100 flows run in one CI invocation could exhaust a flat cap mid-run and delete bundles from the run still in progress. Playwright's wipe-on-every-run model was rejected because Evident's bundles are explicitly designed to be handed to another agent session or a teammate (unlike Playwright's ephemeral traces/screenshots) — losing all history after the very next run doesn't fit that goal. |
 
 ---
 
@@ -352,6 +367,16 @@ foundation that might be wrong.
 - Spec file naming/organization conventions
 - Trigger retry/idempotency semantics (what happens if the trigger call itself fails or times out)
 - Run bundle format versioning (so old bundles stay readable as the framework evolves)
+- Trust-on-first-use allow-list for `evident run`'s dynamic import of flow/
+  config files — a `direnv allow`-style mechanism (content-hash a file,
+  refuse to import it until explicitly trusted, re-prompt if it changes)
+  would give real protection instead of the current `--help` note, which
+  only informs a human reader and blocks nothing. Deferred, not built:
+  current exposure is close to zero pre-release, and the CLI-interaction
+  story (how does an untrusted-by-default check work in CI, where there's
+  no interactive step to run `evident allow` first?) isn't resolved yet —
+  building it before that's answered risks the wrong mechanism. The
+  `--help` note is a stopgap for the interim, not the resolved answer.
 - WireMock adoption specifics for outbound test doubles
 - Rollout plan for attaching the OTel agent across existing services
 - Requirement-to-Flow generation — a future layer that drafts a starting

@@ -1,4 +1,4 @@
-import type { ResolvedService } from './config.js';
+import type { ResolvedService } from '../config.js';
 
 export interface TriggerRequest {
   method: string;

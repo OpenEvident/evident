@@ -16,6 +16,9 @@
       "import": "./dist/index.mjs"
     }
   },
+  "bin": {
+    "evident": "./dist/cli.mjs"
+  },
   "files": [
     "dist"
   ],

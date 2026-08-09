@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ResolvedService } from '../src/config.js';
-import { createTrigger, TriggerError } from '../src/trigger.js';
+import { createTrigger, TriggerError } from '../src/evidence/trigger.js';
 
 const services: Record<string, ResolvedService> = {
   'caller-service': {

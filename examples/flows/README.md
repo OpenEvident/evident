@@ -1,16 +1,20 @@
-# Flow spec sketches
+# Flow specs
 
-**These are design sketches, not runnable specs yet.** `defineFlow`, `poll`,
-`expect`, `evidence`, and `trigger` don't exist as real exports from
-`evident` — only a placeholder `version()` export does (see
-`framework/src/index.ts`). Nothing here will typecheck or run until Layer 2
-(`defineFlow`) and Layer 3 (`poll`/evidence collectors) are implemented.
+**These are real, runnable specs.** `defineFlow`, `poll`, `expect`,
+`evidence`, `trigger`, hooks, fixtures, `configureSuite`, and the CLI are
+all implemented in `framework/src/`. Every file here typechecks and runs
+against the real `caller-service`/`receiver-service`, via the real CLI:
 
-They exist to answer one question before writing that implementation: does
-the API we designed on paper actually read well once pointed at a real
-flow against the real `caller-service`/`receiver-service`? Cheaper to find
-out now than after `poll()` is fully built and something underneath it
-needs to change shape.
+```bash
+pnpm exec evident run basic-pass.flow.ts
+pnpm exec evident run timeout.flow.ts --name timeoutSlow
+pnpm exec evident run safety.flow.ts --confirm
+```
+
+They started as design sketches to answer one question before writing the
+implementation: does the API designed on paper actually read well once
+pointed at a real flow? What's here now is what that process converged
+on — validated by actually running, not just by typechecking.
 
 ## Structure
 
@@ -71,42 +75,32 @@ that reasoning about the design in the abstract didn't.
    `evident.config.ts` between runs. Worth deciding whether this becomes an
    env-var override, multiple config profiles, or a CLI flag before this
    becomes a real annoyance.
-3. **`evidence.logs()` needed two distinct methods, not one** —
-   `.waitFor()` (polls internally, used directly) and `.contains()` (a
-   single-shot check, used *inside* a custom `poll()` condition in
-   `mixedEvidenceCustomPoll`). This split wasn't explicit in
-   architecture.md before; it fell out naturally from actually writing the
-   mixed-evidence case. Worth confirming this is the intended shape rather
-   than something to unify.
-4. **The trigger response shape was assumed, not specified.** Nearly every
-   flow here asserts `res.status`/`res.body`, assuming `trigger.api()`
-   returns something Fetch-Response-shaped (`{ status, body }`). Never
-   explicitly pinned down before — worth confirming when `trigger.api()` is
-   actually implemented. The `Trigger`/`Evidence` interfaces in `clients/`
-   are local stand-ins for this, not real framework types.
-5. **Whether `trigger.api()` throws or returns-with-status on a non-2xx
-   response is genuinely undecided**, and it directly determines how
-   `triggerFailure` should be written. It currently assumes throw/reject
-   (so the framework can categorize it as a trigger failure automatically,
-   per Decision 19) and deliberately doesn't catch/assert on it — but if
-   the real implementation instead returns a response object with
-   `status: 500` for the caller to check, every other flow's
-   `expect(res.status).toBe(...)` pattern would need to extend to the
-   failure case too, and this one would need a rewrite.
-6. **The CLI needs a way to address one flow within a multi-export file.**
-   `evident run timeout.flow.ts` is ambiguous now that the file holds three
-   flows. Something like `evident run timeout.flow.ts --name timeoutSlow`
-   (mirroring Playwright's `--grep`) is the likely shape, but this wasn't
-   part of the original CLI design and needs to be added to it.
-7. **Fixture dependency resolution isn't specified.** `lifecycle.flow.ts`'s
-   `recordIdFixture` declares `deps: batchFixture` and expects its resolved
-   value as `setup`'s first argument — a single fixture, by object
-   reference. Whether a Fixture can depend on more than one other Fixture,
-   and how `run()`'s `fixtures` param ends up typed as the merged shape of
-   everything a Flow requests, is unresolved.
-8. **Whether `configureSuite`'s mode applies uniformly to every Flow
-   exported from that file is assumed, not decided.** `lifecycle.flow.ts`
-   is entirely serial and `concurrency.flow.ts` entirely parallel because
-   every Flow in each file needs the same mode — but nothing prevents a
-   file from mixing Flows that want different modes, and there's no syntax
-   yet for that case.
+3. **`evidence.logs()` needed two distinct methods — confirmed, both real.**
+   `.waitFor()` polls (built on `poll()` internally) and `.contains()` is a
+   single-shot check for use inside a custom `poll()` condition — exactly
+   as `mixedEvidenceCustomPoll` assumed.
+4. **The trigger response shape — confirmed: `{ status, body }`,
+   Fetch-Response-shaped.** `Trigger`/`Evidence` now import the real types
+   from `evident` (`clients/*.ts` no longer declare local stand-ins).
+5. **`trigger.api()` throws on a non-2xx response — confirmed.** Non-2xx
+   throws `TriggerError` (carrying `status`/`body`), never returned as a
+   value to check. `triggerFailure`'s original assumption (no
+   catch/assert, let it propagate) was correct as written.
+6. **CLI addressing of one flow in a multi-export file — resolved:
+   `--name`, matched against the export identifier.**
+   `evident run timeout.flow.ts --name timeoutSlow` runs just that one.
+   Omitting `--name` runs every exported Flow in the file.
+7. **Fixture dependency resolution — resolved.** A Fixture depends on at
+   most one other Fixture, by object reference (`deps: batchFixture`),
+   resolved before the dependent's own `setup` runs. `run()`'s `fixtures`
+   param is properly typed as the merged shape of everything a Flow
+   requests — `defineFlow` is generic over the `fixtures` array, inferring
+   each Fixture's value type and intersecting them (`UnionToIntersection`),
+   with the returned `Flow` object itself erasing that generic since a
+   Suite holds a heterogeneous array the runner treats uniformly.
+8. **Whether `configureSuite`'s mode applies uniformly — resolved: yes, by
+   rule.** One file is one Suite is one execution mode; `configureSuite`
+   registers against a single module-level registration window opened
+   right before that file is imported. Mixing modes in one file isn't
+   supported — if you need two, that's two files, same as
+   `lifecycle.flow.ts` and `concurrency.flow.ts` already are.

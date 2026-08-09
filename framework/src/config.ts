@@ -9,6 +9,12 @@ export interface ServiceTargetConfig {
 export interface EvidentConfig {
   defaultTarget: string;
   services: Record<string, Record<string, ServiceTargetConfig>>;
+  /**
+   * How long `evident run` keeps run bundles in `.evident/runs/` before
+   * automatically deleting them. `false` disables pruning entirely (keep
+   * everything). Omit to use the framework default (14 days).
+   */
+  runRetentionDays?: number | false;
 }
 
 export interface ResolvedService extends ServiceTargetConfig {

@@ -1,5 +1,5 @@
 import { readFile, stat } from 'node:fs/promises';
-import type { ResolvedService } from './config.js';
+import type { ResolvedService } from '../config.js';
 import { poll, type PollOptions, type PollResult } from './poll.js';
 
 export interface WaitForOptions extends PollOptions {
@@ -28,6 +28,21 @@ export interface LogEvidence {
 
 export interface Evidence {
   logs(service: string): LogEvidence;
+}
+
+export interface EvidenceSnapshot {
+  logPath: string;
+  /** Byte offset the log file was at when the Flow's trigger fired — everything from here on is this run's evidence window. */
+  fireOffsetBytes: number;
+  /**
+   * Full raw content appended since `fireOffsetBytes`, unredacted — not
+   * just what an assertion matched against. Untrusted, externally-
+   * influenced data (architecture.md §8, Decision 23) — it can contain
+   * anything an external caller sent the service under test (webhook
+   * payloads, user-submitted fields). Whatever eventually reads this
+   * (the AI Review Layer) must treat it as data, never as instructions.
+   */
+  raw: string;
 }
 
 function isEnoent(error: unknown): error is NodeJS.ErrnoException {
@@ -61,6 +76,32 @@ async function readLogSince(logPath: string, offsetBytes: number): Promise<strin
     return '';
   }
   return buffer.subarray(offsetBytes).toString('utf8');
+}
+
+/**
+ * Captures the full raw log content appended since each service's fire
+ * offset — the run bundle's "full raw evidence," not just matched
+ * snippets (architecture.md §6). A service whose log file doesn't exist
+ * (or was never fired against) yields an empty snapshot rather than
+ * throwing — this runs after the Flow has already finished, so failing
+ * fast here would only hide the Flow's own outcome behind a confusing
+ * secondary error.
+ */
+export async function captureEvidenceSnapshots(
+  services: Record<string, ResolvedService>,
+  fireOffsets: Map<string, number>,
+): Promise<Record<string, EvidenceSnapshot>> {
+  const snapshots: Record<string, EvidenceSnapshot> = {};
+
+  await Promise.all(
+    Object.values(services).map(async (service) => {
+      const fireOffsetBytes = fireOffsets.get(service.name) ?? 0;
+      const raw = await readLogSince(service.logPath, fireOffsetBytes).catch(() => '');
+      snapshots[service.name] = { logPath: service.logPath, fireOffsetBytes, raw };
+    }),
+  );
+
+  return snapshots;
 }
 
 /**

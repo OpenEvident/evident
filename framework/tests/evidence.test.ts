@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ResolvedService } from '../src/config.js';
-import { createEvidence, logFileSize } from '../src/evidence.js';
+import { createEvidence, logFileSize } from '../src/evidence/evidence.js';
 
 let dir: string;
 let logPath: string;

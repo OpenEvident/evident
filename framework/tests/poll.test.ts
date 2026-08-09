@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { poll, PollTimeoutError } from '../src/poll.js';
+import { poll, PollTimeoutError } from '../src/evidence/poll.js';
 
 beforeEach(() => {
   vi.useFakeTimers();
