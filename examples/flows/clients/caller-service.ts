@@ -1,17 +1,9 @@
 /**
  * Typed wrapper around caller-service's endpoints — keeps the raw
  * path/method/body shape in one place instead of repeated across every
- * flow that triggers this service. `Trigger` is a minimal local stand-in
- * for whatever `evident` actually exports once trigger.api() is
- * implemented for real (see flows/README.md).
+ * flow that triggers this service.
  */
-
-export interface Trigger {
-  api<TResponseBody = unknown>(
-    service: string,
-    options: { method: string; path: string; body?: unknown },
-  ): Promise<{ status: number; body: TResponseBody }>;
-}
+import type { Trigger } from 'evident';
 
 export interface TriggerRequestBody {
   recordId: string;

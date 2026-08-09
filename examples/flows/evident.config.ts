@@ -5,6 +5,8 @@
  * per-service once the agent is attached for that run (see
  * examples/services/README.md).
  */
+import type { EvidentConfig } from 'evident';
+
 export default {
   defaultTarget: 'local',
   services: {
@@ -23,4 +25,4 @@ export default {
       },
     },
   },
-};
+} satisfies EvidentConfig;

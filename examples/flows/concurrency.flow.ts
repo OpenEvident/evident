@@ -1,6 +1,6 @@
 import { defineFlow, expect, configureSuite } from 'evident';
-import { triggerCaller } from './clients/caller-service.js';
-import { expectProcessed } from './clients/receiver-service.js';
+import { triggerCaller } from './clients/caller-service.ts';
+import { expectProcessed } from './clients/receiver-service.ts';
 
 /**
  * Execution mode, locks, tags, skip, and Flow-level timeout/retries

@@ -1,6 +1,6 @@
 import { defineFlow, expect } from 'evident';
-import { triggerCaller } from './clients/caller-service.js';
-import { expectProcessed } from './clients/receiver-service.js';
+import { triggerCaller } from './clients/caller-service.ts';
+import { expectProcessed } from './clients/receiver-service.ts';
 
 /**
  * Both correlation modes (Decision 2/18), side by side, so the ergonomic

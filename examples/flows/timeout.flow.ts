@@ -1,6 +1,6 @@
 import { defineFlow, expect } from 'evident';
-import { triggerCaller } from './clients/caller-service.js';
-import { expectProcessed } from './clients/receiver-service.js';
+import { triggerCaller } from './clients/caller-service.ts';
+import { expectProcessed } from './clients/receiver-service.ts';
 
 /**
  * Three sibling flows demonstrating the two-tier expectBy/timeout model

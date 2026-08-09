@@ -1,6 +1,6 @@
 import { defineFlow, expect, beforeAll, afterAll, beforeEach, afterEach, configureSuite, defineFixture } from 'evident';
-import { triggerCaller } from './clients/caller-service.js';
-import { expectProcessed } from './clients/receiver-service.js';
+import { triggerCaller } from './clients/caller-service.ts';
+import { expectProcessed } from './clients/receiver-service.ts';
 
 /**
  * Suite lifecycle: hooks, fixtures, and serial execution mode
