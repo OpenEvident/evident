@@ -67,6 +67,50 @@ heuristic-mode correlation (Decision 18): it searches for the exact
 **Heuristic mode** works out of the box — no setup. Both services already
 log the `recordId`, which is what `matchOn` searches for.
 
+Within heuristic mode, the framework's evidence collector actually tries
+three progressively stronger ways to find a match (architecture.md §5),
+and both services deliberately demonstrate a different rung:
+
+- **`caller-service`** logs plain text (its original `application.yml`
+  pattern, unchanged) — every match against it goes through the substring
+  rung. This is the zero-setup floor every service gets for free.
+- **`receiver-service`** turns on Spring Boot's native structured JSON
+  logging (`logging.structured.format.file: ecs`) and stamps `recordId`
+  into SLF4J's MDC for the duration of each request
+  (`ProcessController.process()`, `MDC.put`/`MDC.remove`) — no new
+  dependency, just the two changes below. Because Spring Boot includes
+  every MDC key as a top-level JSON field, `matchOn: [{ field: 'recordId',
+  value: recordId }]` against its logs resolves via an exact structured
+  lookup instead of a text scan, and the run bundle records
+  `matchedVia: 'structured-field'` for it.
+
+The recipe, if you want to add this to a service of your own:
+
+```yaml
+# application.yml
+logging:
+  structured:
+    format:
+      file: ecs # or 'gelf' / 'logstash'
+```
+
+```java
+// at the request/message boundary
+MDC.put("recordId", recordId);
+try {
+  // ... handle the request ...
+} finally {
+  MDC.remove("recordId");
+}
+```
+
+Nothing in `matchOn`/`waitFor`'s call shape has to change either way — the
+stronger match happens automatically the moment a service's log lines
+start parsing as JSON with the declared field present. `advanced.flow.ts`'s
+`asyncCallback` flow exercises both rungs side by side in a single run,
+since it asserts against `caller-service` (plain text) and
+`receiver-service` (structured) in sequence.
+
 **Trace mode** requires attaching the OpenTelemetry Java agent (Decision 2)
 to both services' JVM args, e.g.:
 

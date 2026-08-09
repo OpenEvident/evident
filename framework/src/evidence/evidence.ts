@@ -1,29 +1,48 @@
 import { readFile, stat } from 'node:fs/promises';
 import type { ResolvedService } from '../config.js';
+import { findMatches, type MatchedVia, type MatchOnField } from './matching.js';
 import { poll, type PollOptions, type PollResult } from './poll.js';
 
 export interface WaitForOptions extends PollOptions {
   /**
-   * Declares the correlation field this search is keyed on, for the run
-   * bundle's record of "the correlation key/value actually used"
-   * (architecture.md §6). Doesn't change the search itself — `pattern` is
-   * what's actually matched against.
+   * Declares the field(s)/value(s) this search is keyed on — all AND'd
+   * together. When a log line parses as JSON, these are checked as an
+   * exact structured lookup (architecture.md §5's "structured-field" rung)
+   * rather than folded into the `pattern` substring scan; when it doesn't
+   * parse, `pattern` alone decides the match.
    */
-  matchOn?: string;
-  /** The value `matchOn` refers to. See {@link WaitForOptions.matchOn}. */
-  value?: string;
+  matchOn?: MatchOnField[];
+  /**
+   * How many matches are expected within the search window. Defaults to
+   * exactly `1` — a second match is a fact about evidence that already
+   * exists (a genuine duplicate, not a "not yet" state), so it fails
+   * immediately as {@link import('./matching.js').DuplicateMatchError}
+   * instead of being retried into a timeout. Pass `'any'` when duplicates
+   * are a known, benign possibility (e.g. at-least-once delivery). Only
+   * enforced when `matchOn` is declared — a bare substring `pattern` was
+   * never meant to identify a single record.
+   */
+  expectedMatches?: number | 'any';
+}
+
+export interface WaitForResult extends PollResult {
+  /** Which rung of the match ladder actually matched (architecture.md §5). Absent if `waitFor` never resolves successfully. */
+  matchedVia?: MatchedVia;
 }
 
 export interface LogEvidence {
   /**
-   * Polls until `pattern` appears in the log, or fails per `options`.
+   * Polls until `pattern`/`matchOn` matches, or fails per `options`.
    * Checks the log file actually exists before polling starts — a
    * missing file is an infrastructure failure and rejects immediately,
    * never silently retried as "not true yet."
+   *
+   * @throws {import('./matching.js').DuplicateMatchError} If `matchOn` is
+   *   declared and more lines match than `options.expectedMatches` allows.
    */
-  waitFor(pattern: string, options?: WaitForOptions): Promise<PollResult>;
-  /** Single-shot check, for use inside a custom {@link poll} condition. */
-  contains(pattern: string): Promise<boolean>;
+  waitFor(pattern: string, options?: WaitForOptions): Promise<WaitForResult>;
+  /** Single-shot check, for use inside a custom {@link poll} condition. Never enforces `expectedMatches` — "at least one match" is all a boolean result can express. */
+  contains(pattern: string, options?: { matchOn?: readonly MatchOnField[] }): Promise<boolean>;
 }
 
 export interface Evidence {
@@ -128,19 +147,24 @@ export function createEvidence(
         async waitFor(pattern: string, options: WaitForOptions = {}) {
           await assertLogFileExists(resolved.logPath, service);
           const offset = fireOffsets.get(service) ?? 0;
+          let matchedVia: MatchedVia | undefined;
 
-          return poll(async () => {
+          const result = await poll(async () => {
             const text = await readLogSince(resolved.logPath, offset);
-            if (!text.includes(pattern)) {
+            const found = findMatches(text, pattern, options.matchOn, options.expectedMatches ?? 1);
+            if (!found) {
               throw new Error(`Pattern "${pattern}" not yet found in "${service}"'s logs.`);
             }
+            matchedVia = found.matchedVia;
           }, options);
+
+          return matchedVia === undefined ? result : { ...result, matchedVia };
         },
 
-        async contains(pattern: string) {
+        async contains(pattern: string, options: { matchOn?: readonly MatchOnField[] } = {}) {
           const offset = fireOffsets.get(service) ?? 0;
           const text = await readLogSince(resolved.logPath, offset);
-          return text.includes(pattern);
+          return findMatches(text, pattern, options.matchOn, 'any') !== undefined;
         },
       };
     },

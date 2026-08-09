@@ -42,6 +42,20 @@ export class PollTimeoutError extends Error {
   }
 }
 
+/**
+ * Thrown from a `condition` to abort {@link poll} immediately instead of
+ * retrying — for failures that are already final facts (e.g. a duplicate
+ * correlation match), as opposed to "not true yet." A generic `poll()`
+ * condition would otherwise get retried indefinitely into a confusing
+ * `PollTimeoutError`, hiding the real cause.
+ */
+export class NonRetryableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NonRetryableError';
+  }
+}
+
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -89,6 +103,9 @@ export async function poll(
         attempts,
       };
     } catch (error) {
+      if (error instanceof NonRetryableError) {
+        throw error;
+      }
       lastError = error;
       const elapsedMs = Date.now() - start;
       if (elapsedMs >= timeoutMs) {

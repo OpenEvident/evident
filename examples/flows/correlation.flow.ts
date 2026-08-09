@@ -57,10 +57,10 @@ export const traceMode = defineFlow({
     // default right now (open question, see flows/README.md).
     //
     // Deliberately bypasses expectProcessed() and calls evidence.logs()
-    // directly, WITHOUT matchOn/value — that's the point: in trace mode,
+    // directly, WITHOUT matchOn — that's the point: in trace mode,
     // correlation is automatic from the config's declared mode, and the
     // spec author shouldn't need to think about it. expectProcessed()
-    // always adds matchOn/value, so it doesn't fit this case.
+    // always adds matchOn, so it doesn't fit this case.
     await evidence.logs('receiver-service').waitFor(`processed record ${recordId}`, {
       expectBy: '2s',
       timeout: '10s',

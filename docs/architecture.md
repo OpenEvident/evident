@@ -203,22 +203,83 @@ Per-service config field (§3): `correlation: trace | heuristic`.
   `opentelemetry-java-instrumentation`'s supported-libraries list — not
   assumed.
 - **`heuristic`** (fallback, for services not yet running the agent) — the
-  spec **explicitly names the matching field and value**
-  (`matchOn: 'recordId', value: record.id`), searched for within the active
-  polling window. Deliberately **not** automatic fuzzy/timing-proximity
-  matching — a false-positive correlation is worse than no correlation, and
-  gets actively unreliable under concurrent real traffic.
+  spec **explicitly names the matching field(s) and value(s)**
+  (`matchOn: [{ field: 'recordId', value: record.id }]`, all entries AND'd —
+  a spec author can add more, e.g. an `eventType`, for stronger
+  disambiguation), searched for within the active polling window.
+  Deliberately **not** automatic fuzzy/timing-proximity matching — a
+  false-positive correlation is worse than no correlation, and gets
+  actively unreliable under concurrent real traffic.
 
   **Search algorithm:** bound every heuristic search to evidence timestamped
   at or after the moment the trigger actually fired (not when `run()`
-  started) *and* require the exact declared value to appear. This rules out
-  stale matches from previous runs against append-only local log files
-  regardless of content, and narrows (without fully eliminating)
-  substring-collision risk from generic matching values — spec authors are
-  expected to key on real identifiers, not small ints. For CloudWatch, this
-  is just how Logs Insights queries already work (every query is
-  time-range-scoped), so it's not extra mechanism, just how the query gets
-  built.
+  started). Within that window, matching runs an automatic three-rung
+  ladder (Decision 25; researched against WireMock, Karate, Tracetest,
+  Grafana, Datadog, and Spring Boot/OpenTelemetry's own docs — see
+  `research/research-correlation-algorithm.md` and
+  `research/research-correlation-modern-approaches.md`), strongest match
+  wins, no spec-author configuration needed to pick a rung:
+
+  1. **`substring`** — the raw log line contains `pattern` as literal text.
+     Works against any log format, zero setup; the floor every service gets
+     for free.
+  2. **`structured-field`** — if a log line parses as JSON, every declared
+     `matchOn` field is checked as an **exact key lookup** against the
+     parsed object instead of falling back to substring on that line — a
+     deterministic match rather than a hope that the value happens to
+     render as matchable text. (Never silently falls back to substring
+     on a JSON line whose fields don't match — that would reopen the exact
+     false-positive risk `matchOn` exists to close.) Automatic the moment a
+     service's logs are structured; see `examples/services/README.md`'s
+     recipe (Spring Boot's native `logging.structured.format` + one
+     `MDC.put`/`MDC.remove` pair at the request boundary — no new
+     dependency).
+  3. **`trace-id`** — a `structured-field` match whose line also carries a
+     non-empty `trace_id` (e.g. because the OTel Java agent is attached for
+     other reasons, or for `trace` mode elsewhere in the same fleet)
+     upgrades to this strongest tier. Corroboration only — `trace_id`
+     alone never causes a pass; the declared `matchOn` fields still have to
+     match.
+
+  Requiring the exact declared value(s) to appear (rather than a small int
+  or generic value) narrows substring-collision risk precisely because it
+  has no structural collision resistance to fall back on — unlike an OTel
+  trace ID, which is a 128-bit random value where accidental collision
+  within a bounded window is practically impossible (verified against the
+  OTel trace API spec), a hand-picked `matchOn` value is only as safe as
+  the identifier a spec author chose. For CloudWatch, the time-bound half
+  of this is just how Logs Insights queries already work (every query is
+  time-range-scoped), so it's not extra mechanism there, just how the
+  query gets built.
+
+  **Duplicate matches are a hard failure, not a soft risk.** `expectedMatches`
+  defaults to exactly `1`; finding more within the window throws
+  `DuplicateMatchError` immediately (not retried into a timeout — a
+  duplicate is a fact about evidence that already exists, more polling
+  can't undo it) as its own distinct failure kind from "0 matches / never
+  happened." A spec author who knows duplicates are expected and benign
+  (e.g. at-least-once delivery) can override with `expectedMatches: 'any'`.
+  Only enforced when `matchOn` is declared — a bare substring `pattern` was
+  never meant to identify a single record. No tool studied in the research
+  (WireMock, Karate) does this automatically; it's Evident's own design,
+  named as such rather than presented as a borrowed pattern.
+
+  **The run bundle records which rung actually matched**
+  (`AssertionRecord.matchedVia`) — a `substring` pass and a
+  `structured-field` pass aren't equally trustworthy, and a teammate or
+  agent debugging a flaky flow later has a concrete, actionable signal
+  ("this service should turn on structured logging") that plain pass/fail
+  can't give them.
+
+  **Deferred, not built:** OTel Baggage as a carrier for business
+  correlation values that propagate automatically across process
+  boundaries (unlike MDC, which is per-process and needs re-stamping on
+  every hop) — a real mechanism the research surfaced, but with no
+  precedent anywhere endorsing or rejecting it for this use case, and no
+  concrete multi-hop-async pain point yet to justify the extra surface.
+  Revisit if/when a flow genuinely needs a correlation value to survive
+  several hops without each service re-extracting it from its inbound
+  payload.
 
 ---
 
@@ -355,12 +416,23 @@ foundation that might be wrong.
 | 22 | Run bundle format versioning | Stamp `schemaVersion` into every bundle from day one; defer all migration/compatibility handling | No versioning; full migration tooling now | Adding a version field retroactively is impossible for bundles already written; adding it now costs nothing. Migration logic has no V1 justification yet. |
 | 23 | AI Review Layer evidence handling | Raw evidence treated as untrusted data — explicitly delimited and marked non-instructional in the reviewing prompt | Trusting evidence content at face value | A run bundle can contain arbitrary externally-influenced text (webhook payloads, user-submitted fields); an AI Review Layer that doesn't treat it as data risks indirect prompt injection — same principle as not following instructions found in tool results. |
 | 24 | `.evident/runs/` retention | Time-based (default 14 days), configurable via `EvidentConfig.runRetentionDays` + `--retention-days` CLI override (same precedence as `--target`/`defaultTarget`), disableable, auto-pruned silently on every `evident run`, plus a separate `evident clean` command for manual clearing | Count-based cap (e.g. "keep last N bundles"); Playwright's model (wipe the whole output dir at the start of every run) | A count cap doesn't scale with project size — a bundle is written per Flow, not per invocation, so a project with 100 flows run in one CI invocation could exhaust a flat cap mid-run and delete bundles from the run still in progress. Playwright's wipe-on-every-run model was rejected because Evident's bundles are explicitly designed to be handed to another agent session or a teammate (unlike Playwright's ephemeral traces/screenshots) — losing all history after the very next run doesn't fit that goal. |
+| 25 | Heuristic correlation matching implementation | Composite `matchOn` (array of `{field, value}`, all AND'd); automatic 3-rung ladder (substring → JSON exact-field lookup → `trace_id` corroboration), strongest match wins, no spec-author config to pick a rung; `matchedVia` recorded in the bundle; `expectedMatches` defaults to `1`, throws `DuplicateMatchError` immediately (not retried) when matchOn is declared and exceeded | Single-field `matchOn` only; always-substring search; silent first-match-wins on duplicates; requiring structured JSON logging globally | Researched against real prior art first (`research/research-correlation-algorithm.md`, `research/research-correlation-modern-approaches.md`) — WireMock's own docs treat composite AND-matching as the default shape, not an advanced option; Spring Boot's native structured logging + one MDC call closes the "does this field reliably appear" gap other platforms (Datadog, Grafana) also solve via structured fields, not magic matching; no tool studied does automatic duplicate handling, so treating 2+ matches as a hard, distinct failure is original design, named as such. Kept the zero-config substring floor always available rather than requiring the upgrade globally — mirrors OTel's own agent-vs-manual-instrumentation two-tier framing. |
 
 ---
 
 ## 11. Open Branches (not yet resolved)
 
-- Concrete heuristic-correlation search algorithm (flagged as genuinely hard — §5)
+- OTel Baggage as a carrier for business correlation values that need to
+  survive multiple process hops without each service re-extracting them
+  from its inbound payload (Decision 25's matching ladder solves
+  single-hop reliability via MDC; Baggage is a different, unadopted
+  mechanism for the multi-hop case — see
+  `research/research-correlation-modern-approaches.md` §5, open question 3)
+- Cross-heterogeneous-store heuristic search (matching one `matchOn` value
+  across a log file *and* a Mongo query *and* a Neo4j query in one check)
+  has no prior art anywhere studied — flagged now so it isn't assumed to be
+  a simple extension of the log-only case whenever Mongo/Neo4j evidence
+  (§9, explicitly deferred) actually gets built
 - CLI command surface beyond `evident run`
 - MCP tool list, finalized (§7 names are provisional)
 - Repo/package layout and distribution (`@org/evident`?)

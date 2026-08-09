@@ -1,4 +1,5 @@
-import type { Evidence, LogEvidence, WaitForOptions } from '../evidence/evidence.js';
+import type { Evidence, LogEvidence, WaitForOptions, WaitForResult } from '../evidence/evidence.js';
+import type { MatchedVia } from '../evidence/matching.js';
 import {
   PollTimeoutError,
   poll as rawPoll,
@@ -65,20 +66,31 @@ export function recordingTrigger(
   };
 }
 
-function assertionRecord(
-  base: Pick<AssertionRecord, 'service' | 'pattern'>,
-  options: WaitForOptions,
-  outcome: AssertionRecord['outcome'],
-  durationMs: number,
-  attempts: number,
-  error?: string,
-): AssertionRecord {
+interface AssertionRecordArgs {
+  base: Pick<AssertionRecord, 'service' | 'pattern'>;
+  options: WaitForOptions;
+  outcome: AssertionRecord['outcome'];
+  durationMs: number;
+  attempts: number;
+  matchedVia?: MatchedVia;
+  error?: string;
+}
+
+function assertionRecord({
+  base,
+  options,
+  outcome,
+  durationMs,
+  attempts,
+  matchedVia,
+  error,
+}: AssertionRecordArgs): AssertionRecord {
   const record: AssertionRecord = { ...base, outcome, durationMs, attempts };
   if (options.matchOn !== undefined) {
     record.matchOn = options.matchOn;
   }
-  if (options.value !== undefined) {
-    record.value = options.value;
+  if (matchedVia !== undefined) {
+    record.matchedVia = matchedVia;
   }
   if (options.expectBy !== undefined) {
     record.expectBy = options.expectBy;
@@ -101,35 +113,37 @@ export function recordingEvidence(
     logs(service: string): LogEvidence {
       const log = evidence.logs(service);
       return {
-        async waitFor(pattern: string, options: WaitForOptions = {}): Promise<PollResult> {
+        async waitFor(pattern: string, options: WaitForOptions = {}): Promise<WaitForResult> {
           const start = Date.now();
           try {
             const result = await log.waitFor(pattern, options);
             record(
-              assertionRecord(
-                { service, pattern },
+              assertionRecord({
+                base: { service, pattern },
                 options,
-                result.outcome,
-                result.durationMs,
-                result.attempts,
-              ),
+                outcome: result.outcome,
+                durationMs: result.durationMs,
+                attempts: result.attempts,
+                ...(result.matchedVia === undefined ? {} : { matchedVia: result.matchedVia }),
+              }),
             );
             return result;
           } catch (error) {
             record(
-              assertionRecord(
-                { service, pattern },
+              assertionRecord({
+                base: { service, pattern },
                 options,
-                'fail',
-                Date.now() - start,
-                attemptsOf(error),
-                errorMessage(error),
-              ),
+                outcome: 'fail',
+                durationMs: Date.now() - start,
+                attempts: attemptsOf(error),
+                error: errorMessage(error),
+              }),
             );
             throw error;
           }
         },
-        contains: (pattern: string) => log.contains(pattern),
+        contains: (pattern: string, options?: Parameters<LogEvidence['contains']>[1]) =>
+          log.contains(pattern, options),
       };
     },
   };
@@ -143,18 +157,26 @@ export function recordingPoll(
     const start = Date.now();
     try {
       const result = await rawPoll(condition, options);
-      record(assertionRecord({}, options, result.outcome, result.durationMs, result.attempts));
+      record(
+        assertionRecord({
+          base: {},
+          options,
+          outcome: result.outcome,
+          durationMs: result.durationMs,
+          attempts: result.attempts,
+        }),
+      );
       return result;
     } catch (error) {
       record(
-        assertionRecord(
-          {},
+        assertionRecord({
+          base: {},
           options,
-          'fail',
-          Date.now() - start,
-          attemptsOf(error),
-          errorMessage(error),
-        ),
+          outcome: 'fail',
+          durationMs: Date.now() - start,
+          attempts: attemptsOf(error),
+          error: errorMessage(error),
+        }),
       );
       throw error;
     }

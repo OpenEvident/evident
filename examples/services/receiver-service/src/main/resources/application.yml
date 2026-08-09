@@ -8,5 +8,6 @@ spring:
 logging:
   file:
     name: logs/receiver-service.log
-  pattern:
-    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
+  structured:
+    format:
+      file: ecs

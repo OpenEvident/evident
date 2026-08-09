@@ -64,8 +64,7 @@ describe('runFlow', () => {
         await appendFile(logPath, 'processed record r1\n');
         await appendFile(logPath, 'Authorization: Bearer abc.def.ghi\n');
         await evidence.logs('caller-service').waitFor('processed record r1', {
-          matchOn: 'recordId',
-          value: 'r1',
+          matchOn: [{ field: 'recordId', value: 'r1' }],
           expectBy: '1s',
           timeout: '5s',
         });
@@ -102,8 +101,8 @@ describe('runFlow', () => {
     expect(bundle.assertions[0]).toMatchObject({
       service: 'caller-service',
       pattern: 'processed record r1',
-      matchOn: 'recordId',
-      value: 'r1',
+      matchOn: [{ field: 'recordId', value: 'r1' }],
+      matchedVia: 'substring',
       outcome: 'pass',
     });
     expect(bundle.assertions[0]?.attempts).toBeGreaterThanOrEqual(1);
@@ -114,6 +113,74 @@ describe('runFlow', () => {
     expect(evidenceSnapshot?.raw).toContain('Authorization: [REDACTED]');
     expect(evidenceSnapshot?.raw).not.toContain('abc.def.ghi');
     expect(evidenceSnapshot?.raw).not.toContain('unrelated pre-existing log line');
+  });
+
+  it('records matchedVia "structured-field" in the bundle when evidence is JSON with a matching field', async () => {
+    stubFetch(200, { recordId: 'r1', status: 'completed' });
+
+    const flow = defineFlow({
+      name: 'run-flow-structured-field',
+      services: ['caller-service'],
+      safety: 'safe',
+      correlation: 'heuristic',
+      async run({ trigger, evidence }) {
+        await trigger.api('caller-service', {
+          method: 'POST',
+          path: '/trigger',
+          body: { recordId: 'r1' },
+        });
+
+        await appendFile(logPath, '{"recordId":"r1","msg":"processed record r1"}\n');
+        await evidence.logs('caller-service').waitFor('processed record r1', {
+          matchOn: [{ field: 'recordId', value: 'r1' }],
+          expectBy: '1s',
+          timeout: '5s',
+        });
+      },
+    });
+
+    const bundle = await runFlow(flow, config());
+
+    expect(bundle.outcome).toBe('pass');
+    expect(bundle.assertions[0]).toMatchObject({
+      matchOn: [{ field: 'recordId', value: 'r1' }],
+      matchedVia: 'structured-field',
+      outcome: 'pass',
+    });
+  });
+
+  it('captures outcome: fail with the DuplicateMatchError message when matchOn finds more than one match', async () => {
+    stubFetch(200, { recordId: 'r1', status: 'completed' });
+
+    const flow = defineFlow({
+      name: 'run-flow-duplicate-match',
+      services: ['caller-service'],
+      safety: 'safe',
+      correlation: 'heuristic',
+      async run({ trigger, evidence }) {
+        await trigger.api('caller-service', {
+          method: 'POST',
+          path: '/trigger',
+          body: { recordId: 'r1' },
+        });
+
+        await appendFile(
+          logPath,
+          '{"recordId":"r1","msg":"first"}\n{"recordId":"r1","msg":"second"}\n',
+        );
+        await evidence.logs('caller-service').waitFor('irrelevant', {
+          matchOn: [{ field: 'recordId', value: 'r1' }],
+          expectBy: '1s',
+          timeout: '5s',
+        });
+      },
+    });
+
+    const bundle = await runFlow(flow, config());
+
+    expect(bundle.outcome).toBe('fail');
+    expect(bundle.assertions[0]).toMatchObject({ outcome: 'fail' });
+    expect(bundle.assertions[0]?.error).toMatch(/Found 2 matches, expected exactly 1/);
   });
 
   it('captures outcome: fail without throwing when a trigger call fails', async () => {

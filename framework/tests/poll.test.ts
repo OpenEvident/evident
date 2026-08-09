@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { poll, PollTimeoutError } from '../src/evidence/poll.js';
+import { NonRetryableError, poll, PollTimeoutError } from '../src/evidence/poll.js';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -84,5 +84,16 @@ describe('poll', () => {
     const result = await poll(condition);
 
     expect(result.outcome).toBe('pass');
+  });
+
+  it('rethrows a NonRetryableError immediately, without retrying', async () => {
+    const failure = new NonRetryableError('already a fact, more polling cannot fix this');
+    const condition = vi.fn().mockImplementation(() => {
+      throw failure;
+    });
+
+    await expect(poll(condition, { expectBy: '200ms', timeout: '10s' })).rejects.toBe(failure);
+
+    expect(condition).toHaveBeenCalledTimes(1);
   });
 });

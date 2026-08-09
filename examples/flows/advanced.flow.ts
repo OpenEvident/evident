@@ -35,8 +35,7 @@ export const asyncCallback = defineFlow({
 
     // The trigger call itself already tells us it was accepted, not completed.
     await evidence.logs('caller-service').waitFor(`trigger received for record ${recordId}`, {
-      matchOn: 'recordId',
-      value: recordId,
+      matchOn: [{ field: 'recordId', value: recordId }],
       expectBy: '500ms',
       timeout: '2s',
     });

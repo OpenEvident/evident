@@ -1,5 +1,6 @@
 import type { CorrelationMode } from '../config.js';
 import type { EvidenceSnapshot } from '../evidence/evidence.js';
+import type { MatchedVia, MatchOnField } from '../evidence/matching.js';
 import type { PollOutcome } from '../evidence/poll.js';
 import type { SafetyLevel } from '../flow/define-flow.js';
 
@@ -25,8 +26,9 @@ export interface TriggerRecord {
 export interface AssertionRecord {
   service?: string;
   pattern?: string;
-  matchOn?: string;
-  value?: string;
+  matchOn?: MatchOnField[];
+  /** Which rung of the match ladder actually matched (architecture.md §5). Absent on a `fail` outcome. */
+  matchedVia?: MatchedVia;
   expectBy?: string;
   timeout?: string;
   outcome: PollOutcome | 'fail';

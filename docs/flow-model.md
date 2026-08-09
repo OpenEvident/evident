@@ -151,7 +151,7 @@ mode just to protect that one resource.
   — nothing in Playwright's model gates a test from running based on
   real-world side-effect risk. This is core to Evident's actual purpose and
   has no upstream equivalent to borrow.
-- **Correlation** (trace/heuristic modes, Decision 2/18) — no Playwright
+- **Correlation** (trace/heuristic modes, Decision 2/18/25) — no Playwright
   equivalent; Playwright has no concept of "prove this evidence in another
   service is caused by this specific test run."
 - **`defineFlow`'s static-metadata-plus-imperative-body split** (Decision

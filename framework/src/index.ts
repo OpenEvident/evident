@@ -2,8 +2,11 @@ export { expect } from 'expect';
 
 export { parseDuration } from './evidence/duration.js';
 
-export { poll, PollTimeoutError } from './evidence/poll.js';
+export { NonRetryableError, poll, PollTimeoutError } from './evidence/poll.js';
 export type { PollOptions, PollOutcome, PollResult } from './evidence/poll.js';
+
+export { DuplicateMatchError } from './evidence/matching.js';
+export type { MatchedVia, MatchOnField } from './evidence/matching.js';
 
 export { resolveServices } from './config.js';
 export type {
@@ -22,6 +25,7 @@ export type {
   EvidenceSnapshot,
   LogEvidence,
   WaitForOptions,
+  WaitForResult,
 } from './evidence/evidence.js';
 
 export { redactPii, redactText, redactValue } from './evidence/redact.js';
