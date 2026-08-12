@@ -1,0 +1,31 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: bulk-import-service
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/bulk_import_service
+      auto-index-creation: true
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+
+logging:
+  file:
+    name: logs/bulk-import-service.log
+  structured:
+    format:
+      file: ecs
+
+menu-service:
+  base-url: http://localhost:8084
+
+bulk-import:
+  # Illustrative cap, not a hard architectural limit — real bulk endpoints
+  # always bound request size; keeps a single POST /imports or POST /sync
+  # from processing an unbounded payload synchronously.
+  max-batch-size: 500
+  ref-data-cache-ttl-seconds: 3600

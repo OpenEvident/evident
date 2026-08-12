@@ -1,0 +1,30 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: menu-service
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/menu_service
+      auto-index-creation: true
+    redis:
+      host: localhost
+      port: 6379
+      database: 1
+
+logging:
+  file:
+    name: logs/menu-service.log
+  structured:
+    format:
+      file: ecs
+
+publishing-service:
+  base-url: http://localhost:8085
+
+bulk-import-service:
+  base-url: http://localhost:8083
+
+menu:
+  max-batch-size: 500

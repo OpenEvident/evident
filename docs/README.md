@@ -28,10 +28,15 @@ dev-tools/
 │                    this project's own code, gitignored, never committed
 ├── framework/      the library itself — scaffolded, tooling verified, core
 │                    primitives (poll/expect/defineFlow) not yet implemented
-└── examples/       V1 proof-of-concept — two working example Spring Boot
+└── examples/       V1 proof-of-concept — two minimal example Spring Boot
                      services (caller-service, receiver-service) proven
-                     end-to-end, plus flow spec sketches (not yet runnable —
-                     see examples/flows/README.md) validating the API shape
+                     end-to-end, plus a second, larger set
+                     (bulk-import-service, menu-service,
+                     publishing-service — see examples/services/
+                     NEXT_SERVICES_DESIGN.md) stress-testing correlation
+                     under bulk/async/restart conditions, plus flow spec
+                     sketches (not yet runnable — see
+                     examples/flows/README.md) validating the API shape
                      before framework/ implements it for real
 ```
 

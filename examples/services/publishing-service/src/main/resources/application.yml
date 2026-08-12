@@ -1,0 +1,20 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: publishing-service
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/publishing_service
+      auto-index-creation: true
+
+logging:
+  file:
+    name: logs/publishing-service.log
+  structured:
+    format:
+      file: ecs
+
+menu-service:
+  base-url: http://localhost:8084
