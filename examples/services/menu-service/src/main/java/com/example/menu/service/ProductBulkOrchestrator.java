@@ -48,7 +48,8 @@ public class ProductBulkOrchestrator {
         String batchId = idGenerator.generate("batch");
         stateStore.initBatch(batchId, request.items().size());
         for (BulkProductItemRequestDto item : request.items()) {
-            String payloadJson = objectMapper.writeValueAsString(new StoredItem(request.partnerId(), request.syncId(), item));
+            String payloadJson = objectMapper.writeValueAsString(
+                    new StoredItem(request.partnerId(), request.syncId(), item, request.simulateItemDelayMs()));
             stateStore.addPending(batchId, item.externalId(), payloadJson);
         }
 
@@ -69,6 +70,6 @@ public class ProductBulkOrchestrator {
     }
 
     /** What actually gets persisted per pending item in Redis, so a restart can reprocess it in full. */
-    public record StoredItem(String partnerId, String syncId, BulkProductItemRequestDto item) {
+    public record StoredItem(String partnerId, String syncId, BulkProductItemRequestDto item, Integer simulateItemDelayMs) {
     }
 }

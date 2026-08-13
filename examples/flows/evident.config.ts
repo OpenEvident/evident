@@ -1,26 +1,34 @@
 /**
- * Local only (docs/architecture.md §9) — no "deployed" targets
- * here yet. Both services default to heuristic correlation since neither
- * runs with the OTel Java agent attached by default; flip to 'trace'
- * per-service once the agent is attached for that run (see
- * examples/services/README.md).
+ * Local only (docs/architecture.md §9) — no "deployed" targets here yet.
+ * All three services default to heuristic correlation since none run with
+ * the OTel Java agent attached (examples/services/README.md never wires
+ * it in by default) — every event they log is structured JSON via MDC,
+ * so heuristic mode resolves via the `structured-field` rung, not plain
+ * substring, without any extra setup.
  */
 import type { EvidentConfig } from 'evident';
 
 export default {
   defaultTarget: 'local',
   services: {
-    'caller-service': {
+    'bulk-import-service': {
       local: {
-        baseUrl: 'http://localhost:8081',
-        logPath: '../services/caller-service/logs/caller-service.log',
+        baseUrl: 'http://localhost:8083',
+        logPath: '../services/bulk-import-service/logs/bulk-import-service.log',
         correlation: 'heuristic',
       },
     },
-    'receiver-service': {
+    'menu-service': {
       local: {
-        baseUrl: 'http://localhost:8082',
-        logPath: '../services/receiver-service/logs/receiver-service.log',
+        baseUrl: 'http://localhost:8084',
+        logPath: '../services/menu-service/logs/menu-service.log',
+        correlation: 'heuristic',
+      },
+    },
+    'publishing-service': {
+      local: {
+        baseUrl: 'http://localhost:8085',
+        logPath: '../services/publishing-service/logs/publishing-service.log',
         correlation: 'heuristic',
       },
     },

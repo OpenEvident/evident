@@ -68,6 +68,8 @@ public class ProductBulkBatchProcessor {
             BulkProductItemRequestDto item = stored.item();
             List<ProductPrice> prices = toDomainPrices(item.prices());
 
+            simulateConfiguredDelay(stored.simulateItemDelayMs());
+
             Product saved = "CREATE".equals(item.action())
                     ? productService.createFromBulk(externalId, item.sku(), item.name(), prices)
                     : productService.updateFromBulk(externalId, item.sku(), item.name(), prices);
@@ -93,20 +95,32 @@ public class ProductBulkBatchProcessor {
     }
 
     /**
-     * The product was saved; only the callback failed. Still counts as
-     * completed — bulk-import-service's own item stays AWAITING_RESULT
+     * The product was saved; only the callback failed. Already counted as
+     * completed by the try block above (this only runs after that
+     * increment) — bulk-import-service's own item stays AWAITING_RESULT
      * until it gets a signal, which is a known, accepted gap in this
      * example's at-least-once delivery story.
      */
     private void handleCallbackDeliveryFailure(String batchId, String externalId, BulkImportCallbackException e) {
-        stateStore.incrementCompleted(batchId);
-        stateStore.removePending(batchId, externalId);
         StructuredLog.fields()
                 .with("batchId", batchId)
                 .with("externalId", externalId)
                 .with("error", String.valueOf(e.getMessage()))
                 .with("event", "item.callback.failed")
                 .warn(log, "callback delivery failed for " + externalId);
+    }
+
+    /** Testing-only knob — see {@code BulkProductRequestDto}'s doc comment. No-op when unset/zero. */
+    private void simulateConfiguredDelay(Integer delayMs) {
+        if (delayMs == null || delayMs <= 0) {
+            return;
+        }
+        try {
+            Thread.sleep(delayMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("interrupted while simulating a configured processing delay", e);
+        }
     }
 
     private List<ProductPrice> toDomainPrices(List<ProductPriceDto> dtos) {

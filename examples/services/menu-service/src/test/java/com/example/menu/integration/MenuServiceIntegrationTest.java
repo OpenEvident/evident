@@ -135,7 +135,7 @@ class MenuServiceIntegrationTest {
 
         BulkProductRequestDto request = new BulkProductRequestDto("partner-1", "sync_x9y8z7", List.of(
                 new BulkProductItemRequestDto("pos-sku-0001", "CREATE", "SKU-0001", "Cheeseburger",
-                        List.of(new ProductPriceDto("cur_aed_001", 1300, false, List.of("tax_vat_ae_001"))))));
+                        List.of(new ProductPriceDto("cur_aed_001", 1300, false, List.of("tax_vat_ae_001"))))), null);
 
         BulkProductResponseDto response = restTemplate.postForObject(
                 "http://localhost:" + localPort + "/products/bulk", request, BulkProductResponseDto.class);
@@ -169,7 +169,7 @@ class MenuServiceIntegrationTest {
 
         BulkProductRequestDto request = new BulkProductRequestDto("partner-1", "sync_update_test", List.of(
                 new BulkProductItemRequestDto("pos-sku-0002", "UPDATE", "SKU-0002", "New Name",
-                        List.of(new ProductPriceDto("cur_aed_001", 1500, false, List.of())))));
+                        List.of(new ProductPriceDto("cur_aed_001", 1500, false, List.of())))), null);
 
         restTemplate.postForObject(
                 "http://localhost:" + localPort + "/products/bulk", request, BulkProductResponseDto.class);
