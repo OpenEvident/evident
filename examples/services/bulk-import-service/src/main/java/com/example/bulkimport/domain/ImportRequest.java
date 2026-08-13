@@ -22,7 +22,6 @@ public class ImportRequest {
     private List<ImportItemOutcome> items;
 
     protected ImportRequest() {
-        // for Spring Data materialization
     }
 
     public ImportRequest(String requestId, String partnerId, Instant receivedAt, List<ImportItemOutcome> items) {

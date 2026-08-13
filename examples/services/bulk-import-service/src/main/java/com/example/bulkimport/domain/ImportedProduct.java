@@ -28,7 +28,6 @@ public class ImportedProduct {
     private Instant lastImportedAt;
 
     protected ImportedProduct() {
-        // for Spring Data materialization
     }
 
     public ImportedProduct(

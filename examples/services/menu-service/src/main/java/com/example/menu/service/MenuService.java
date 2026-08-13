@@ -96,7 +96,7 @@ public class MenuService {
 
     public void delete(String menuId) {
         Menu existing = get(menuId);
-        menuRepository.deleteById(existing.getId());
+        menuRepository.save(existing.withStatus(MenuStatus.DELETED));
     }
 
     /** The manual, deliberate menu-assembly action — never triggered automatically by a sync. */

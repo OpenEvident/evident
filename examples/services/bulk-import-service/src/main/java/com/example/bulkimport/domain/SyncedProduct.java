@@ -27,7 +27,6 @@ public class SyncedProduct {
     private Instant lastSyncedAt;
 
     protected SyncedProduct() {
-        // for Spring Data materialization
     }
 
     public SyncedProduct(

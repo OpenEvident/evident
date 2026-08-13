@@ -114,7 +114,6 @@ public class SyncRedisStateStore {
     }
 
     private String extractSyncId(String pendingKey) {
-        // "sync:{syncId}:pending" -> {syncId}
         String withoutPrefix = pendingKey.substring("sync:".length());
         return withoutPrefix.substring(0, withoutPrefix.length() - ":pending".length());
     }

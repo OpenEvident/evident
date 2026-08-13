@@ -76,17 +76,7 @@ public class ProductBulkBatchProcessor {
             stateStore.removePending(batchId, externalId);
             callbackClient.sendSyncResult(externalId, syncId, saved.getProductId(), "SYNCED");
         } catch (BulkImportCallbackException e) {
-            // The product was saved; only the callback failed. Still counts as completed —
-            // bulk-import-service's own item stays AWAITING_RESULT until it gets a signal,
-            // which is a known, accepted gap in this example's at-least-once delivery story.
-            stateStore.incrementCompleted(batchId);
-            stateStore.removePending(batchId, externalId);
-            StructuredLog.fields()
-                    .with("batchId", batchId)
-                    .with("externalId", externalId)
-                    .with("error", String.valueOf(e.getMessage()))
-                    .with("event", "item.callback.failed")
-                    .warn(log, "callback delivery failed for " + externalId);
+            handleCallbackDeliveryFailure(batchId, externalId, e);
         } catch (Exception e) {
             stateStore.incrementFailed(batchId);
             stateStore.removePending(batchId, externalId);
@@ -100,6 +90,23 @@ public class ProductBulkBatchProcessor {
                 callbackClient.sendSyncResult(externalId, syncId, "", "FAILED");
             }
         }
+    }
+
+    /**
+     * The product was saved; only the callback failed. Still counts as
+     * completed — bulk-import-service's own item stays AWAITING_RESULT
+     * until it gets a signal, which is a known, accepted gap in this
+     * example's at-least-once delivery story.
+     */
+    private void handleCallbackDeliveryFailure(String batchId, String externalId, BulkImportCallbackException e) {
+        stateStore.incrementCompleted(batchId);
+        stateStore.removePending(batchId, externalId);
+        StructuredLog.fields()
+                .with("batchId", batchId)
+                .with("externalId", externalId)
+                .with("error", String.valueOf(e.getMessage()))
+                .with("event", "item.callback.failed")
+                .warn(log, "callback delivery failed for " + externalId);
     }
 
     private List<ProductPrice> toDomainPrices(List<ProductPriceDto> dtos) {

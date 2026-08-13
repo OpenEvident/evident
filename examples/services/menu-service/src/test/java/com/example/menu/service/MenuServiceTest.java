@@ -58,6 +58,19 @@ class MenuServiceTest {
     }
 
     @Test
+    void deleteSoftDeletesRatherThanRemovingTheDocument() {
+        Menu menu = menu(List.of());
+        when(menuRepository.findByMenuId("menu_1")).thenReturn(Optional.of(menu));
+
+        menuService.delete("menu_1");
+
+        ArgumentCaptor<Menu> captor = ArgumentCaptor.forClass(Menu.class);
+        org.mockito.Mockito.verify(menuRepository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(MenuStatus.DELETED);
+        org.mockito.Mockito.verify(menuRepository, org.mockito.Mockito.never()).deleteById(any());
+    }
+
+    @Test
     void attachProductsMergesWithoutDuplicatesAndOnlyIntoTheNamedCategory() {
         Category burgers = new Category("cat_burgers", "Burgers", List.of(), List.of("prod_1"));
         Category drinks = new Category("cat_drinks", "Drinks", List.of(), List.of());
