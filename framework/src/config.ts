@@ -1,3 +1,5 @@
+import type { PollOptions } from './evidence/poll.js';
+
 export type CorrelationMode = 'trace' | 'heuristic';
 
 export interface ServiceTargetConfig {
@@ -15,6 +17,13 @@ export interface EvidentConfig {
    * everything). Omit to use the framework default (14 days).
    */
   runRetentionDays?: number | false;
+  /**
+   * Fallback `expectBy`/`timeout` for every `poll()`/`evidence.logs().waitFor()`
+   * call in this project that doesn't declare its own — a single place to
+   * tune for "these services are fast/slow" instead of repeating the same
+   * options on every call site. A call's own options always win field-by-field.
+   */
+  defaultPollOptions?: PollOptions;
 }
 
 export interface ResolvedService extends ServiceTargetConfig {

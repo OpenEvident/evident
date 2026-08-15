@@ -1,4 +1,4 @@
-import { configureSuite, defineFlow, expect } from 'evident';
+import { configureSuite, defineFlow, expect, requireDefined } from 'evident';
 import { expectItemImported, expectSyncCompleted, expectSyncDispatched, importProducts, syncProducts } from './clients/bulk-import-service.ts';
 import { dispatchProductsBulk, expectProductSaved, getBulkStatus, listCurrencies, type BulkProductItem } from './clients/menu-service.ts';
 
@@ -10,13 +10,6 @@ import { dispatchProductsBulk, expectProductSaved, getBulkStatus, listCurrencies
  * precedent (flow-model.md §6).
  */
 configureSuite({ mode: 'parallel' });
-
-function requireDefined<T>(value: T | undefined, message: string): T {
-  if (value === undefined) {
-    throw new Error(message);
-  }
-  return value;
-}
 
 export const catalogSmokeCheck = defineFlow({
   name: 'bulk-catalog-smoke-check',
@@ -81,13 +74,15 @@ export const lockedSyncOfARaceProneItem = defineFlow({
  * batch of pre-resolved items, then polls `GET /bulk/{batchId}/status`
  * directly — a genuine REST-response custom `poll()` condition, a
  * mechanism none of this suite's other flows exercise (they all poll log
- * evidence). `batchId` comes back directly in the trigger response body;
- * there's no way to extract it from a matched log line instead (a
- * `waitFor()` match only confirms a pattern was found, it never returns
- * captured field values), which is *why* this flow calls menu-service's
- * bulk endpoint directly instead of going through bulk-import-service's
- * `/sync` (whose own dispatch batchId is only ever visible in its log
- * line, unreachable from here).
+ * evidence). `batchId` comes back directly in the trigger response body.
+ * `waitFor()`'s `.record` (`extractString`, since the framework version
+ * this file was first written against) would now also let a Flow read
+ * `batchId` back out of `item.sync.dispatched`'s matched log line if it
+ * went through bulk-import-service's `/sync` instead — so this flow calls
+ * menu-service's bulk endpoint directly for a different, still-valid
+ * reason: exercising the batch endpoint in isolation from the Sync
+ * workflow's own resolve/hash-check steps, not because the batchId was
+ * otherwise unreachable.
  *
  * `timeout`/`retries`: a real ceiling and a real opt-in retry for a
  * multi-item batch that's inherently more failure-prone than a

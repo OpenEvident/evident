@@ -1,6 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { Evidence } from '../src/evidence/evidence.js';
+import type { Trigger, TriggerResponse } from '../src/evidence/trigger.js';
 import { defineFixture, type Fixture } from '../src/flow/fixture.js';
-import { FixtureResolver } from '../src/flow/fixture-resolver.js';
+import { FixtureResolver, type FixtureRunContext } from '../src/flow/fixture-resolver.js';
+
+const stubTrigger: Trigger = {
+  api: <TBody>() => Promise.resolve({ status: 200, body: undefined } as TriggerResponse<TBody>),
+};
+const stubEvidence: Evidence = {
+  logs: () => ({
+    waitFor: () => Promise.resolve({ outcome: 'pass', durationMs: 0, attempts: 1 } as const),
+    contains: () => Promise.resolve(false),
+  }),
+};
+const runContext: FixtureRunContext = { trigger: stubTrigger, evidence: stubEvidence };
 
 describe('FixtureResolver', () => {
   it('resolves a single Flow-scoped fixture and exposes its value', async () => {
@@ -12,7 +25,7 @@ describe('FixtureResolver', () => {
     });
 
     const resolver = new FixtureResolver();
-    const { values } = await resolver.resolveForFlow([fixture]);
+    const { values } = await resolver.resolveForFlow([fixture], runContext);
 
     expect(values).toEqual({ recordId: 'r1' });
   });
@@ -32,7 +45,7 @@ describe('FixtureResolver', () => {
     });
 
     const resolver = new FixtureResolver();
-    const { values } = await resolver.resolveForFlow([a, b]);
+    const { values } = await resolver.resolveForFlow([a, b], runContext);
 
     expect(values).toEqual({ a: 'a-value', b: 'b-value' });
   });
@@ -57,7 +70,7 @@ describe('FixtureResolver', () => {
     });
 
     const resolver = new FixtureResolver();
-    const { values } = await resolver.resolveForFlow([dep, dependent]);
+    const { values } = await resolver.resolveForFlow([dep, dependent], runContext);
 
     expect(order).toEqual(['dep-setup', 'dependent-setup']);
     expect(values).toEqual({ batchId: 'batch-1', recordId: 'batch-1-0' });
@@ -75,7 +88,7 @@ describe('FixtureResolver', () => {
     });
 
     const resolver = new FixtureResolver();
-    const { teardown } = await resolver.resolveForFlow([fixture]);
+    const { teardown } = await resolver.resolveForFlow([fixture], runContext);
     expect(events).toEqual(['setup']);
 
     await teardown();
@@ -93,8 +106,8 @@ describe('FixtureResolver', () => {
     });
 
     const resolver = new FixtureResolver();
-    const first = await resolver.resolveForFlow([fixture]);
-    const second = await resolver.resolveForFlow([fixture]);
+    const first = await resolver.resolveForFlow([fixture], runContext);
+    const second = await resolver.resolveForFlow([fixture], runContext);
 
     expect(setup).toHaveBeenCalledTimes(1);
     expect(first.values).toEqual({ batchId: 'shared-batch' });
@@ -112,7 +125,7 @@ describe('FixtureResolver', () => {
     });
 
     const resolver = new FixtureResolver();
-    const { teardown } = await resolver.resolveForFlow([suiteFixture]);
+    const { teardown } = await resolver.resolveForFlow([suiteFixture], runContext);
     await teardown();
 
     expect(events).toEqual([]);
@@ -145,7 +158,7 @@ describe('FixtureResolver', () => {
     });
 
     const resolver = new FixtureResolver();
-    const seed = await resolver.resolveForFlow([batchFixture, recordIdFixture]);
+    const seed = await resolver.resolveForFlow([batchFixture, recordIdFixture], runContext);
     expect(seed.values).toEqual({
       batchId: 'lifecycle-batch',
       recordIds: ['lifecycle-batch-0'],
@@ -153,7 +166,49 @@ describe('FixtureResolver', () => {
     });
     await seed.teardown();
 
-    const verify = await resolver.resolveForFlow([batchFixture]);
+    const verify = await resolver.resolveForFlow([batchFixture], runContext);
     expect(verify.values).toEqual({ batchId: 'lifecycle-batch', recordIds: ['lifecycle-batch-0'] });
+  });
+
+  it('passes trigger/evidence to a Flow-scoped fixture, for building a bound service client', async () => {
+    let seenTrigger: Trigger | undefined;
+    let seenEvidence: Evidence | undefined;
+    const clientFixture = defineFixture<{ importProducts: () => Promise<number> }>({
+      scope: 'flow',
+      async setup(_deps, { use, trigger, evidence }) {
+        seenTrigger = trigger;
+        seenEvidence = evidence;
+        await use({
+          importProducts: async () =>
+            (await trigger?.api('bulk-import-service', { method: 'POST', path: '/import' }))
+              ?.status ?? 0,
+        });
+      },
+    });
+
+    const resolver = new FixtureResolver();
+    await resolver.resolveForFlow([clientFixture], runContext);
+
+    expect(seenTrigger).toBe(stubTrigger);
+    expect(seenEvidence).toBe(stubEvidence);
+  });
+
+  it('withholds trigger/evidence from a Suite-scoped fixture — it runs once and would go stale', async () => {
+    let receivedTrigger: Trigger | undefined = stubTrigger;
+    let receivedEvidence: Evidence | undefined = stubEvidence;
+    const suiteFixture = defineFixture<{ ready: true }>({
+      scope: 'suite',
+      async setup(_deps, { use, trigger, evidence }) {
+        receivedTrigger = trigger;
+        receivedEvidence = evidence;
+        await use({ ready: true });
+      },
+    });
+
+    const resolver = new FixtureResolver();
+    await resolver.resolveForFlow([suiteFixture], runContext);
+
+    expect(receivedTrigger).toBeUndefined();
+    expect(receivedEvidence).toBeUndefined();
   });
 });

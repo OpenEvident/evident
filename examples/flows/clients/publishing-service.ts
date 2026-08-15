@@ -4,7 +4,12 @@
  * this suite (menu-service's publish trigger calls it internally), only
  * observed and read back from.
  */
-import type { Evidence, Trigger, WaitForOptions } from 'evident';
+import {
+  defineServiceClientFixture,
+  type Evidence,
+  type Trigger,
+  type WaitForOptions,
+} from 'evident';
 
 export interface AppliedTaxBody {
   taxId: string;
@@ -49,7 +54,7 @@ type Opts = Pick<WaitForOptions, 'delay' | 'expectBy' | 'timeout' | 'expectedMat
  * check, or (better) be split into two separate Flows so each gets its
  * own fresh window — the approach `stale-menu-requires-explicit-republish.flow.ts` takes.
  */
-export function expectMenuPublished(evidence: Evidence, menuId: string, options: Opts) {
+export function expectMenuPublished(evidence: Evidence, menuId: string, options: Opts = {}) {
   return evidence.logs('publishing-service').waitFor(`published ${menuId}`, {
     matchOn: [
       { field: 'menuId', value: menuId },
@@ -60,7 +65,7 @@ export function expectMenuPublished(evidence: Evidence, menuId: string, options:
 }
 
 /** `menu.validation_failed` — Phase 1 rejected the menu; Phase 2 (materialize) never ran, so `menu.published` must never fire for this menuId. */
-export function expectValidationFailed(evidence: Evidence, menuId: string, options: Opts) {
+export function expectValidationFailed(evidence: Evidence, menuId: string, options: Opts = {}) {
   return evidence.logs('publishing-service').waitFor(`validation failed for ${menuId}`, {
     matchOn: [
       { field: 'menuId', value: menuId },
@@ -69,3 +74,19 @@ export function expectValidationFailed(evidence: Evidence, menuId: string, optio
     ...options,
   });
 }
+
+export interface PublishingServiceClient {
+  getMaterializedView: (menuId: string) => ReturnType<typeof getMaterializedView>;
+  expectMenuPublished: (menuId: string, options?: Opts) => ReturnType<typeof expectMenuPublished>;
+  expectValidationFailed: (menuId: string, options?: Opts) => ReturnType<typeof expectValidationFailed>;
+}
+
+/** Binds this file's plain functions to one Flow's own `trigger`/`evidence` — see `bulkImportClientFixture`'s doc comment for the pattern this follows. */
+export const publishingServiceClientFixture = defineServiceClientFixture<
+  'publishing',
+  PublishingServiceClient
+>('publishing', ({ trigger, evidence }: { trigger: Trigger; evidence: Evidence }) => ({
+  getMaterializedView: (menuId) => getMaterializedView(trigger, menuId),
+  expectMenuPublished: (menuId, options) => expectMenuPublished(evidence, menuId, options),
+  expectValidationFailed: (menuId, options) => expectValidationFailed(evidence, menuId, options),
+}));

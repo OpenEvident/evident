@@ -10,6 +10,14 @@ import type { EvidentConfig } from 'evident';
 
 export default {
   defaultTarget: 'local',
+  /**
+   * Matches the timing tier most calls across this suite already used
+   * (dispatch/sync/publish steps waiting on a downstream service hop). A
+   * faster tier exists too (import/attach acknowledgements) — those call
+   * sites still pass their own `{ expectBy: '1s', timeout: '5s' }`, which
+   * wins over this default per call, per field.
+   */
+  defaultPollOptions: { expectBy: '2s', timeout: '10s' },
   services: {
     'bulk-import-service': {
       local: {

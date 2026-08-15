@@ -26,3 +26,12 @@ one-off check inside `evidence.ts`; extend `findMatches()` instead so the
 ladder stays the single source of truth. `expectedMatches` (default `1`)
 is only enforced when `matchOn` is declared, and a duplicate throws
 `DuplicateMatchError` immediately rather than being retried by `poll()`.
+
+`findMatches()`'s result also carries the matched line's parsed JSON as
+`record` (present for `structured-field`/`trace-id`, absent for
+`substring` — nothing parsed to return there), threaded through as
+`WaitForResult.record`. Read a typed field off it with `extractString`/
+`extractNumber`/`extractBoolean` (`evidence/extract.ts`) — these do a real
+runtime type check and throw a descriptive error, never an unchecked
+`as`. Don't add a generic unchecked `extract<T>()`; only add a new
+concrete, checked variant if a fourth primitive type is genuinely needed.

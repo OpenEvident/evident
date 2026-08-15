@@ -1,4 +1,4 @@
-import { defineFlow, expect, type Evidence, type Trigger } from 'evident';
+import { defineFlow, expect, findItem, requireDefined, type Evidence, type Trigger } from 'evident';
 import { importProducts, syncProducts, expectSyncCompleted, expectSyncDispatched, expectItemImported } from './clients/bulk-import-service.ts';
 import {
   attachProducts,
@@ -11,13 +11,6 @@ import {
   publishMenu,
 } from './clients/menu-service.ts';
 import { expectMenuPublished, expectValidationFailed } from './clients/publishing-service.ts';
-
-function requireDefined<T>(value: T | undefined, message: string): T {
-  if (value === undefined) {
-    throw new Error(message);
-  }
-  return value;
-}
 
 async function importSyncAndAssembleOneProductMenu(
   trigger: Trigger,
@@ -37,10 +30,10 @@ async function importSyncAndAssembleOneProductMenu(
   await expectSyncCompleted(evidence, syncRes.body.syncId, externalId, { expectBy: '2s', timeout: '10s' });
 
   const productsRes = await listProducts(trigger, 'ACTIVE');
-  const product = requireDefined(productsRes.body.find((p) => p.externalId === externalId), `expected a product for externalId=${externalId}`);
+  const product = findItem(productsRes.body, (p) => p.externalId === externalId, `expected a product for externalId=${externalId}`);
 
   const countriesRes = await listCountries(trigger);
-  const country = requireDefined(countriesRes.body.find((c) => c.code === countryCode), `expected a seeded country with code=${countryCode}`);
+  const country = findItem(countriesRes.body, (c) => c.code === countryCode, `expected a seeded country with code=${countryCode}`);
 
   return { product, country };
 }

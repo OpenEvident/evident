@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { NonRetryableError, poll, PollTimeoutError } from '../src/evidence/poll.js';
+import {
+  mergePollOptions,
+  NonRetryableError,
+  poll,
+  PollTimeoutError,
+} from '../src/evidence/poll.js';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -95,5 +100,25 @@ describe('poll', () => {
     await expect(poll(condition, { expectBy: '200ms', timeout: '10s' })).rejects.toBe(failure);
 
     expect(condition).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('mergePollOptions', () => {
+  it('returns the call options unchanged when no defaults are declared', () => {
+    expect(mergePollOptions(undefined, { expectBy: '1s' })).toEqual({ expectBy: '1s' });
+  });
+
+  it('falls back to defaults for fields the call site omits', () => {
+    expect(mergePollOptions({ expectBy: '2s', timeout: '10s' }, {})).toEqual({
+      expectBy: '2s',
+      timeout: '10s',
+    });
+  });
+
+  it('lets a per-call field win over the same field in defaults', () => {
+    expect(mergePollOptions({ expectBy: '2s', timeout: '10s' }, { expectBy: '500ms' })).toEqual({
+      expectBy: '500ms',
+      timeout: '10s',
+    });
   });
 });

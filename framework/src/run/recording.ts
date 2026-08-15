@@ -149,14 +149,23 @@ export function recordingEvidence(
   };
 }
 
-/** Wraps `poll` so a Flow's direct `poll(...)` calls (not routed through `evidence`) are also recorded into the run bundle. */
+/**
+ * Wraps a `poll` function so a Flow's direct `poll(...)` calls (not routed
+ * through `evidence`) are also recorded into the run bundle. Takes the
+ * `poll` function to wrap (defaulting to the real one) rather than always
+ * calling the real `poll` internally, matching {@link recordingTrigger}/
+ * {@link recordingEvidence}'s shape — this is what lets `run-flow.ts` inject
+ * a `config.defaultPollOptions`-aware `poll` here without recording.ts
+ * needing to know config exists.
+ */
 export function recordingPoll(
+  pollFn: typeof rawPoll,
   record: (entry: AssertionRecord) => void,
 ): (condition: () => void | Promise<void>, options?: PollOptions) => Promise<PollResult> {
   return async (condition, options = {}) => {
     const start = Date.now();
     try {
-      const result = await rawPoll(condition, options);
+      const result = await pollFn(condition, options);
       record(
         assertionRecord({
           base: {},

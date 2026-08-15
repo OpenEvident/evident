@@ -76,11 +76,20 @@ mechanism over raw hooks specifically because they:
 
 ### What this means for Evident specifically
 
-Our `clients/caller-service.ts` / `clients/receiver-service.ts` (from
-`examples/flows/`) are currently **plain functions** — not scoped, not
-composable, no paired teardown, nothing automatic. Given Playwright's own
-framing, formalizing these into real Fixtures is the more correct long-term
-shape, not just a style choice.
+**Resolved, not just aspirational.** `examples/flows/clients/*.ts` started
+as plain functions — not scoped, not composable, no paired teardown,
+nothing automatic — the same gap this section originally flagged. Two
+things closed it for real: `Fixture.setup` can now receive the running
+Flow's own `trigger`/`evidence` (only for `scope: 'flow'` — see below), and
+`defineServiceClientFixture(key, factory)` (`framework/src/flow/service-client-fixture.ts`)
+wraps the scope declaration, the trigger/evidence-presence guard, and the
+`{ [key]: ... }` value-merge wrap that a hand-written client-binding
+Fixture would otherwise repeat per service. Each of the three example
+services now exports a client Fixture built this way
+(`bulkImportClientFixture`, `menuServiceClientFixture`,
+`publishingServiceClientFixture`) — still explicitly listed in a Flow's
+own `fixtures: [...]`, consistent with `auto: true` staying opt-in
+everywhere else in this design, not silently auto-injected off `services: [...]`.
 
 **This also directly answers the "one flow creates, one flow updates" question
 from before.** Rather than reaching for closures-over-shared-variables in a
@@ -98,11 +107,25 @@ worker process" — a concept tied to how Playwright parallelizes across real
 processes with isolated browser instances. Evident has no browser and no
 inherent need for OS-process-level isolation between Flows. Copying the
 word `'worker'` here would import a concept that doesn't actually apply.
-**Open decision:** Evident's fixture scopes are probably `'flow'` (fresh
-per Flow, equivalent to Playwright's `'test'`) and `'suite'` (shared across
-a Flow Suite, equivalent in *effect* to Playwright's `'worker'` scope for
-our purposes, without borrowing a name that implies OS-process semantics we
-don't have).
+**Resolved as originally proposed:** Evident's fixture scopes are `'flow'`
+(fresh per Flow, equivalent to Playwright's `'test'`) and `'suite'` (shared
+across a Flow Suite, equivalent in *effect* to Playwright's `'worker'`
+scope for our purposes, without borrowing a name that implies OS-process
+semantics we don't have) — `framework/src/flow/fixture.ts`'s
+`Fixture['scope']` is exactly this two-value union.
+
+The scope split turned out to matter for more than naming: a `scope: 'flow'`
+Fixture's `setup` receives the Flow's own `trigger`/`evidence`, but a
+`scope: 'suite'` Fixture's never does. `setup` runs once for a Suite-scoped
+Fixture and is reused by every later Flow in the Suite, while `trigger`/
+`evidence` are built fresh per Flow attempt — `evidence` closes over that
+one attempt's fire-offset map, and `trigger` has its own one-shot "fired"
+flag. A Suite-scoped Fixture that captured either would silently point
+every Flow after the first at the first Flow's already-consumed window —
+exactly the false-positive/stale-match risk §5's fire-offset scoping
+(architecture.md §5) exists to prevent. So the `'flow'`/`'suite'` split
+isn't just "how long the resource lives," it's also the boundary for which
+Fixtures may safely touch `trigger`/`evidence` at all.
 
 ---
 

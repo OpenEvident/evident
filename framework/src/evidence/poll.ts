@@ -23,6 +23,19 @@ const DEFAULT_EXPECT_BY = '5s';
 const DEFAULT_TIMEOUT = '30s';
 
 /**
+ * Layers a per-call `options` over `evident.config.ts`'s `defaultPollOptions`
+ * (if declared) — a per-call value always wins, an undeclared one falls
+ * through to the config default, and if neither is set {@link poll} applies
+ * its own hardcoded fallback. Pure; doesn't touch `poll`'s own defaults.
+ */
+export function mergePollOptions(
+  defaults: PollOptions | undefined,
+  options: PollOptions = {},
+): PollOptions {
+  return defaults ? { ...defaults, ...options } : options;
+}
+
+/**
  * Same schedule Playwright's own `toPass()`/`expect.poll()` use by default
  * (verified against `research/playwright`'s `pollAgainstDeadline`) — a
  * proven backoff shape, not reinvented: fast retries early, settling at 1s.

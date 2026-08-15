@@ -1,4 +1,15 @@
-import { afterAll, afterEach, beforeAll, beforeEach, configureSuite, defineFixture, defineFlow, expect } from 'evident';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  configureSuite,
+  defineFixture,
+  defineFlow,
+  expect,
+  findItem,
+  requireDefined,
+} from 'evident';
 import { expectItemImported, expectSyncCompleted, expectSyncDispatched, importProducts, syncProducts } from './clients/bulk-import-service.ts';
 import {
   attachProducts,
@@ -152,13 +163,6 @@ const flowStartMarkerFixture = defineFixture<void>({
   },
 });
 
-function requireDefined<T>(value: T | undefined, message: string): T {
-  if (value === undefined) {
-    throw new Error(message);
-  }
-  return value;
-}
-
 /**
  * Flow A — establishes a real published menu. Kept minimal since the
  * interesting assertions all live in Flow B; this is essentially a
@@ -193,8 +197,9 @@ export const publishEstablishesTheMaterializedView = defineFlow({
     await expectSyncCompleted(evidence, syncRes.body.syncId, shared.externalId, { expectBy: '2s', timeout: '10s' });
 
     const productsRes = await listProducts(trigger, 'ACTIVE');
-    const product = requireDefined(
-      productsRes.body.find((p) => p.externalId === shared.externalId),
+    const product = findItem(
+      productsRes.body,
+      (p) => p.externalId === shared.externalId,
       `expected menu-service to have created a product for externalId=${shared.externalId}`,
     );
     shared.productId = product.productId;
@@ -202,8 +207,9 @@ export const publishEstablishesTheMaterializedView = defineFlow({
     const currenciesRes = await listCurrencies(trigger, 'AED');
     const currency = requireDefined(currenciesRes.body[0], 'expected menu-service to have a seeded AED currency');
     const countriesRes = await listCountries(trigger);
-    const country = requireDefined(
-      countriesRes.body.find((c) => c.defaultCurrencyId === currency.id),
+    const country = findItem(
+      countriesRes.body,
+      (c) => c.defaultCurrencyId === currency.id,
       `expected a seeded country whose defaultCurrencyId is ${currency.id}`,
     );
 
@@ -228,8 +234,9 @@ export const publishEstablishesTheMaterializedView = defineFlow({
     await expectMenuPublished(evidence, shared.menuId, { expectBy: '2s', timeout: '10s' });
 
     const viewRes = await getMaterializedView(trigger, shared.menuId);
-    const materialized = requireDefined(
-      viewRes.body.products.find((p) => p.productId === shared.productId),
+    const materialized = findItem(
+      viewRes.body.products,
+      (p) => p.productId === shared.productId,
       `expected the materialized view for ${shared.menuId} to include product ${shared.productId}`,
     );
     expect(materialized.unitPrice).toBe(1000); // 10.00 AED
@@ -287,8 +294,9 @@ export const staleMenuIsFlaggedThenExplicitlyRepublished = defineFlow({
     expect(republishedAutomatically).toBe(false);
 
     const staleViewRes = await getMaterializedView(trigger, menuId);
-    const staleMaterialized = requireDefined(
-      staleViewRes.body.products.find((p) => p.productId === productId),
+    const staleMaterialized = findItem(
+      staleViewRes.body.products,
+      (p) => p.productId === productId,
       `expected the materialized view for ${menuId} to still include product ${productId}`,
     );
     expect(staleMaterialized.unitPrice).toBe(1000); // still the OLD price — materialize hasn't re-run
@@ -299,8 +307,9 @@ export const staleMenuIsFlaggedThenExplicitlyRepublished = defineFlow({
     await expectMenuPublished(evidence, menuId, { expectBy: '2s', timeout: '10s' }); // exactly 1 within THIS run's own window
 
     const freshViewRes = await getMaterializedView(trigger, menuId);
-    const freshMaterialized = requireDefined(
-      freshViewRes.body.products.find((p) => p.productId === productId),
+    const freshMaterialized = findItem(
+      freshViewRes.body.products,
+      (p) => p.productId === productId,
       `expected the materialized view for ${menuId} to include product ${productId} after republishing`,
     );
     expect(freshMaterialized.unitPrice).toBe(1500); // 15.00 AED — the NEW price

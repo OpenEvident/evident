@@ -22,7 +22,10 @@ explained in its own doc comment.
 
 ```
 flows/
-├── clients/                              # service-object layer, one file per service
+├── clients/                              # service-object layer, one file per service —
+│   │                                      # plain trigger/evidence-taking functions, plus a
+│   │                                      # defineServiceClientFixture-built Fixture per service
+│   │                                      # binding them to one Flow's own trigger/evidence
 │   ├── bulk-import-service.ts
 │   ├── menu-service.ts
 │   └── publishing-service.ts
@@ -38,7 +41,7 @@ flows/
 
 | File | Export | Demonstrates |
 |---|---|---|
-| `catalog-sync-pipeline.flow.ts` | default | The whole real pipeline in one run: import → sync (cross-service dispatch + callback) → manual menu assembly → explicit publish → **REST read-back of the materialized view with a real tax-math assertion**. Mixes log evidence with response-value assertions in one flow. |
+| `catalog-sync-pipeline.flow.ts` | default | The whole real pipeline in one run: import → sync (cross-service dispatch + callback) → manual menu assembly → explicit publish → **REST read-back of the materialized view with a real tax-math assertion**. Mixes log evidence with response-value assertions in one flow. Reads the real `productId` straight off `product.saved`'s matched log record via `extractString(productSaved.record, 'productId')` (see finding 4 below) instead of a separate `GET /products` lookup; all three services are bound through `defineServiceClientFixture`-built client Fixtures (`bulkImportClientFixture`/`menuServiceClientFixture`/`publishingServiceClientFixture`), each already bound to this Flow's own `trigger`/`evidence`; reference-data/array lookups use `requireDefined`/`findItem` instead of inline `if (!x) throw`. |
 | `sync-skips-unchanged-content.flow.ts` | `reSyncWithNoChangeIsANoOp` | Proving a negative: re-syncing unchanged content skips dispatch entirely (`item.sync.skipped`), and menu-service never sees a second `product.saved` for that item — the second, dispatch-time hash (`synced_products`) doing its actual job. |
 | `stale-menu-requires-explicit-republish.flow.ts` | `publishEstablishesTheMaterializedView` | Sets up a real published menu with a known price — companion setup to the flagship, kept minimal since the interesting checks live in the next flow. Also: `beforeAll`/`afterAll`/`beforeEach`/`afterEach` hooks, a Suite-scoped Fixture, a Flow-scoped Fixture that `deps` on it, and an `auto: true` Fixture (see the file's doc comment for why `auto: true` still has to be listed explicitly — it's currently inert in the runner). |
 | | `staleMenuIsFlaggedThenExplicitlyRepublished` | A product price change flags a `PUBLISHED` menu `UPDATES_AVAILABLE` **without auto-republishing it** (materialized view still shows the old price), then an explicit republish actually updates it. `configureSuite({mode:'serial'})` — see the file's own doc comment for exactly why nested-object fixture mutation is required for cross-Flow state to work, and why the two export *names* (not just their declaration order) had to be chosen deliberately. |
@@ -98,16 +101,25 @@ found mechanical details worth being explicit about.
    already sort correctly, the way this file's two exports now do
    (`publishEstablishesTheMaterializedView` before
    `staleMenuIsFlaggedThenExplicitlyRepublished`).
-4. **No mechanism exists to read a matched log line's field values back
-   into a Flow.** `waitFor()`/`contains()` only report whether a pattern
-   matched (plus `matchedVia`), never the parsed field values themselves.
-   This is why `bulkDispatchCompletesAcrossManyItems` calls menu-service's
-   `POST /products/bulk` *directly* rather than going through
-   bulk-import-service's `/sync` — the resulting `batchId` is only ever
-   visible in a log line (`item.sync.dispatched`'s `batchId` field) when
-   dispatched that way, with no way to extract it back out; calling the
-   bulk endpoint directly gets `batchId` straight from the response body
-   instead.
+4. **(Closed) `waitFor()` now returns the matched log line's parsed
+   fields.** Originally there was no mechanism to read a matched log
+   line's field values back into a Flow — `waitFor()`/`contains()` only
+   reported whether a pattern matched, plus `matchedVia`. Fixed at the
+   framework level: `findMatches()` (`evidence/matching.ts`) already
+   parsed the line as JSON to check `matchOn` fields and was discarding
+   that object; it now returns it as `MatchResult.record`, threaded
+   through as `WaitForResult.record` (present for a `structured-field`/
+   `trace-id` match, absent for a plain `substring` match — nothing to
+   return there). `catalog-sync-pipeline.flow.ts` uses this directly:
+   `expectProductSaved(...)`'s `.record?.productId` replaces what used to
+   be a separate `GET /products` call whose only job was re-finding a row
+   this flow already had log evidence for. `bulkDispatchCompletesAcrossManyItems`
+   still calls menu-service's `POST /products/bulk` directly rather than
+   going through bulk-import-service's `/sync` — but now for its own
+   stated reason only (exercising the batch endpoint in isolation from the
+   Sync workflow's resolve/hash-check steps), not because `batchId` was
+   otherwise unreachable — `item.sync.dispatched`'s `batchId` field would
+   be readable via `.record` too now.
 5. **No per-trigger retry/idempotent option actually exists in
    `TriggerRequest`/`trigger.api()`** (`evidence/trigger.ts`) — confirmed
    by reading the actual interface, which has only `method`/`path`/`body`.
@@ -147,6 +159,51 @@ found mechanical details worth being explicit about.
    since the field still *reads* naturally as "the automatic one," and
    its doc comment there described intent (flow-model.md §9.4), not
    current behavior.
+9. **A Fixture's `setup` only ever receives `trigger`/`evidence` when
+   `scope: 'flow'`** — confirmed by reading `fixture-resolver.ts`'s
+   `runFixture`, which only spreads them into the `ctx` object it passes
+   to `setup` when `fixture.scope === 'flow'`. Deliberate, not an
+   oversight: a Suite-scoped Fixture's `setup` runs once and is reused by
+   every later Flow in the Suite, but `trigger`/`evidence` are built fresh
+   per Flow attempt in `run-flow.ts` — `evidence` closes over that one
+   attempt's fire-offset map, and `trigger` (`createTrigger`) has its own
+   one-shot `fired` flag. A Suite-scoped Fixture that captured either would
+   silently point every Flow after the first at the *first* Flow's
+   already-consumed window. All three client Fixtures
+   (`clients/bulk-import-service.ts`, `clients/menu-service.ts`,
+   `clients/publishing-service.ts`) are declared `scope: 'flow'`
+   specifically because of this, via `defineServiceClientFixture` —
+   none of them would be safe as a Suite-scoped Fixture even though
+   their values never change between Flows.
+10. **A naive `Record<string, TClient>` return type breaks the moment two
+    client Fixtures are combined on one Flow.** `defineServiceClientFixture`'s
+    first draft typed its result as `Fixture<Record<string, TClient>>` — a
+    generic string index signature. Combining two such Fixtures (e.g.
+    `menuServiceClientFixture` and `publishingServiceClientFixture`) via
+    the framework's `UnionToIntersection` fixture-merge trick
+    (`define-flow.ts`) intersects *every* string key across both index
+    signatures, not just the two keys actually used — so `fixtures.menuService`
+    would type-check as `MenuServiceClient & PublishingServiceClient`
+    instead of just `MenuServiceClient`. Fixed by making the key itself a
+    generic (`Key extends string`) rather than a plain `string` parameter,
+    which makes TypeScript infer its *literal* type (e.g. `'menuService'`)
+    from the call site — `Record<Key, TClient>` for two different literal
+    keys intersects to the correctly-shaped `{ menuService: A } & {
+    publishing: B }` instead. Locked in by a dedicated test
+    (`framework/tests/service-client-fixture.test.ts`) combining two
+    same-shaped-but-different clients and asserting each key resolves to
+    its own client, not a merge of both.
+11. **`requireDefined` was independently reinvented three times before
+    being centralized.** An identical `function requireDefined<T>(value:
+    T | undefined, message: string): T` was copy-pasted verbatim into
+    `stale-menu-requires-explicit-republish.flow.ts`,
+    `publish-validation-and-trigger-failures.flow.ts`, and
+    `bulk-catalog-operations.flow.ts` independently, each time to replace
+    the same `if (!x) throw new Error(...)` pattern after an
+    `array.find(...)` or an optional lookup. Treated as real evidence the
+    pattern belongs in the framework once (now `requireDefined`/`findItem`,
+    exported from `evident`) rather than as three local copies — the
+    duplication itself was the signal, not a guess.
 
 ## Running locally
 

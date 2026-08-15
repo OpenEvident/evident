@@ -22,6 +22,17 @@ export interface MatchResult {
   matchedVia: MatchedVia;
   /** How many lines matched within the search window — always `1` once past `expectedMatches` enforcement, but useful when `expectedMatches: 'any'` bypasses it. */
   matchCount: number;
+  /**
+   * The matched line's parsed JSON payload, for a `structured-field` or
+   * `trace-id` match. Absent for a `substring` match — there's no parsed
+   * object to return in that case.
+   */
+  record?: Record<string, unknown>;
+}
+
+interface LineMatch {
+  matchedVia: MatchedVia;
+  record: Record<string, unknown> | undefined;
 }
 
 /**
@@ -70,7 +81,7 @@ function matchLine(
   line: string,
   pattern: string,
   matchOn: readonly MatchOnField[] | undefined,
-): MatchedVia | undefined {
+): LineMatch | undefined {
   const parsed = parseJsonObject(line);
 
   if (parsed && matchOn && matchOn.length > 0) {
@@ -79,10 +90,12 @@ function matchLine(
       return undefined;
     }
     const traceId = parsed.trace_id;
-    return typeof traceId === 'string' && traceId.length > 0 ? 'trace-id' : 'structured-field';
+    const matchedVia =
+      typeof traceId === 'string' && traceId.length > 0 ? 'trace-id' : 'structured-field';
+    return { matchedVia, record: parsed };
   }
 
-  return line.includes(pattern) ? 'substring' : undefined;
+  return line.includes(pattern) ? { matchedVia: 'substring', record: undefined } : undefined;
 }
 
 /**
@@ -108,7 +121,7 @@ export function findMatches(
     .split('\n')
     .filter((line) => line.length > 0)
     .map((line) => matchLine(line, pattern, matchOn))
-    .filter((matchedVia): matchedVia is MatchedVia => matchedVia !== undefined);
+    .filter((match): match is LineMatch => match !== undefined);
 
   if (matches.length === 0) {
     return undefined;
@@ -119,9 +132,13 @@ export function findMatches(
     throw new DuplicateMatchError(matches.length, expectedMatches);
   }
 
-  const matchedVia = matches.reduce((strongest, current) =>
-    MATCH_STRENGTH[current] > MATCH_STRENGTH[strongest] ? current : strongest,
+  const strongest = matches.reduce((strongest, current) =>
+    MATCH_STRENGTH[current.matchedVia] > MATCH_STRENGTH[strongest.matchedVia] ? current : strongest,
   );
 
-  return { matchedVia, matchCount: matches.length };
+  const result: MatchResult = { matchedVia: strongest.matchedVia, matchCount: matches.length };
+  if (strongest.record !== undefined) {
+    result.record = strongest.record;
+  }
+  return result;
 }

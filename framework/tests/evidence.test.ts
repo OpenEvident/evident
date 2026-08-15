@@ -93,6 +93,42 @@ describe('createEvidence', () => {
     expect(result.matchedVia).toBe('structured-field');
   });
 
+  it('waitFor resolves with the matched line’s parsed record for a structured-field match', async () => {
+    await writeFile(logPath, '');
+    const offset = await logFileSize(logPath);
+    const evidence = createEvidence(services(), new Map([['receiver-service', offset]]));
+
+    const promise = evidence.logs('receiver-service').waitFor('processed record r1', {
+      matchOn: [{ field: 'recordId', value: 'r1' }],
+      expectBy: '1s',
+      timeout: '5s',
+    });
+
+    await appendFile(logPath, '{"recordId":"r1","productId":"p-42","msg":"processed record r1"}\n');
+    const result = await promise;
+
+    expect(result.record).toEqual({
+      recordId: 'r1',
+      productId: 'p-42',
+      msg: 'processed record r1',
+    });
+  });
+
+  it('waitFor omits record for a plain substring match', async () => {
+    await writeFile(logPath, '');
+    const offset = await logFileSize(logPath);
+    const evidence = createEvidence(services(), new Map([['receiver-service', offset]]));
+
+    const promise = evidence
+      .logs('receiver-service')
+      .waitFor('processed record r1', { expectBy: '1s', timeout: '5s' });
+
+    await appendFile(logPath, 'processed record r1\n');
+    const result = await promise;
+
+    expect(result.record).toBeUndefined();
+  });
+
   it('waitFor resolves with matchedVia "trace-id" when the matched JSON line also carries a trace_id', async () => {
     await writeFile(logPath, '');
     const offset = await logFileSize(logPath);
@@ -154,6 +190,37 @@ describe('createEvidence', () => {
       }),
     ).rejects.toBeInstanceOf(DuplicateMatchError);
     expect(Date.now() - start).toBeLessThan(1000);
+  });
+
+  it('applies config-level defaultPollOptions when a waitFor call declares no timing of its own', async () => {
+    await writeFile(logPath, '');
+    const offset = await logFileSize(logPath);
+    const evidence = createEvidence(services(), new Map([['receiver-service', offset]]), {
+      expectBy: '20ms',
+      timeout: '80ms',
+    });
+
+    const start = Date.now();
+    await expect(evidence.logs('receiver-service').waitFor('never appears')).rejects.toThrow();
+    expect(Date.now() - start).toBeLessThan(1000);
+  }, 2000);
+
+  it('lets a waitFor call’s own timing override defaultPollOptions', async () => {
+    await writeFile(logPath, 'startup line\n');
+    const offset = await logFileSize(logPath);
+    const evidence = createEvidence(services(), new Map([['receiver-service', offset]]), {
+      expectBy: '20ms',
+      timeout: '80ms',
+    });
+
+    const promise = evidence
+      .logs('receiver-service')
+      .waitFor('processed record r1', { expectBy: '1s', timeout: '5s' });
+
+    await appendFile(logPath, 'processed record r1\n');
+    const result = await promise;
+
+    expect(result.outcome).toBe('pass');
   });
 
   it('contains() checks structured matchOn fields, not just substring', async () => {

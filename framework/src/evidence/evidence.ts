@@ -1,7 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import type { ResolvedService } from '../config.js';
 import { findMatches, type MatchedVia, type MatchOnField } from './matching.js';
-import { poll, type PollOptions, type PollResult } from './poll.js';
+import { mergePollOptions, poll, type PollOptions, type PollResult } from './poll.js';
 
 export interface WaitForOptions extends PollOptions {
   /**
@@ -28,6 +28,14 @@ export interface WaitForOptions extends PollOptions {
 export interface WaitForResult extends PollResult {
   /** Which rung of the match ladder actually matched (architecture.md §5). Absent if `waitFor` never resolves successfully. */
   matchedVia?: MatchedVia;
+  /**
+   * The matched line's parsed JSON payload, when the match resolved via
+   * `structured-field` or `trace-id` — lets a Flow read a value (e.g. an
+   * ID the service only ever emitted in a log line) without a separate
+   * REST call just to look it up again. Absent for a `substring` match, or
+   * a match with no matchOn-driven JSON parse.
+   */
+  record?: Record<string, unknown>;
 }
 
 export interface LogEvidence {
@@ -129,10 +137,13 @@ export async function captureEvidenceSnapshots(
  * Flow's trigger fired — every search here only looks at bytes appended
  * after that point, which is what keeps a stale match from a previous run
  * against the same append-only log file from ever matching (architecture.md §5).
+ * `defaultPollOptions` (from `evident.config.ts`) fills in whatever a
+ * `waitFor` call's own `options` doesn't declare.
  */
 export function createEvidence(
   services: Record<string, ResolvedService>,
   fireOffsets: Map<string, number>,
+  defaultPollOptions?: PollOptions,
 ): Evidence {
   return {
     logs(service: string): LogEvidence {
@@ -148,17 +159,34 @@ export function createEvidence(
           await assertLogFileExists(resolved.logPath, service);
           const offset = fireOffsets.get(service) ?? 0;
           let matchedVia: MatchedVia | undefined;
+          let record: Record<string, unknown> | undefined;
 
-          const result = await poll(async () => {
-            const text = await readLogSince(resolved.logPath, offset);
-            const found = findMatches(text, pattern, options.matchOn, options.expectedMatches ?? 1);
-            if (!found) {
-              throw new Error(`Pattern "${pattern}" not yet found in "${service}"'s logs.`);
-            }
-            matchedVia = found.matchedVia;
-          }, options);
+          const result = await poll(
+            async () => {
+              const text = await readLogSince(resolved.logPath, offset);
+              const found = findMatches(
+                text,
+                pattern,
+                options.matchOn,
+                options.expectedMatches ?? 1,
+              );
+              if (!found) {
+                throw new Error(`Pattern "${pattern}" not yet found in "${service}"'s logs.`);
+              }
+              matchedVia = found.matchedVia;
+              record = found.record;
+            },
+            mergePollOptions(defaultPollOptions, options),
+          );
 
-          return matchedVia === undefined ? result : { ...result, matchedVia };
+          const augmented: WaitForResult = { ...result };
+          if (matchedVia !== undefined) {
+            augmented.matchedVia = matchedVia;
+          }
+          if (record !== undefined) {
+            augmented.record = record;
+          }
+          return augmented;
         },
 
         async contains(pattern: string, options: { matchOn?: readonly MatchOnField[] } = {}) {

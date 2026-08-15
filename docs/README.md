@@ -26,28 +26,31 @@ dev-tools/
 ├── docs/          you are here
 ├── research/       cloned reference repos used during research — not part of
 │                    this project's own code, gitignored, never committed
-├── framework/      the library itself — scaffolded, tooling verified, core
-│                    primitives (poll/expect/defineFlow) not yet implemented
-└── examples/       V1 proof-of-concept — two minimal example Spring Boot
-                     services (caller-service, receiver-service) proven
-                     end-to-end, plus a second, larger set
-                     (bulk-import-service, menu-service,
-                     publishing-service — see examples/services/
-                     NEXT_SERVICES_DESIGN.md) stress-testing correlation
-                     under bulk/async/restart conditions, plus flow spec
-                     sketches (not yet runnable — see
-                     examples/flows/README.md) validating the API shape
-                     before framework/ implements it for real
+├── framework/      the library itself — implemented: defineFlow, poll,
+│                    Trigger/Evidence (matchOn ladder, .record extraction),
+│                    Fixtures (scope:'flow'|'suite', trigger/evidence access,
+│                    defineServiceClientFixture), Suite hooks/modes/locks,
+│                    custom expect matchers, the evident CLI, run bundles +
+│                    retention. Build/lint/typecheck/test/format all green.
+└── examples/       V1 proof-of-concept — three real Spring Boot services
+                     (bulk-import-service, menu-service, publishing-service;
+                     see examples/services/README.md) exercising bulk/async/
+                     restart-recovery correlation, plus 7 real, runnable flow
+                     spec files (examples/flows/) proven live end-to-end
+                     against all three via the real evident CLI — not
+                     sketches validating a shape, but the actual thing
 ```
 
 ## Status
 
 Requirements and architecture are resolved for V1 (multi-service, local-only,
-REST trigger, log evidence, correlation proven). `framework/` is scaffolded
-(build/lint/typecheck/test all verified working) and the two example
-services are built and verified. Flow spec sketches exist in
-`examples/flows/` (not yet runnable) to validate the spec-authoring API
-before it's implemented for real. Core framework implementation
-(`poll`/`expect`/`defineFlow`/CLI) has not started. See architecture.md §9
-for exact V1 scope, §11 for what's deliberately still undecided, and
-flow-model.md for the suite/hooks/fixtures design still being resolved.
+REST trigger, log evidence, correlation proven). Core framework
+implementation (`poll`/`expect`/`defineFlow`/Fixtures/Suites/CLI/run
+bundles) is done and verified — `framework/`'s full build/lint/typecheck/
+test/format pipeline is green, and every mechanism has been exercised for
+real: `pnpm exec evident run <file>.flow.ts` against the three live
+example services, not just typechecked. See architecture.md §9 for exact
+V1 scope, §11 for what's deliberately still undecided (Mongo/Neo4j/
+CloudWatch/MCP/Playwright triggers — out of scope until V1's correlation
+mechanism is proven, which it now is), and flow-model.md for the
+suite/hooks/fixtures design, now implemented as described.

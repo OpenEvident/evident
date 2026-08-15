@@ -7,6 +7,7 @@ import {
   logFileSize,
   type EvidenceSnapshot,
 } from '../evidence/evidence.js';
+import { mergePollOptions, poll as rawPollFn } from '../evidence/poll.js';
 import { redactText } from '../evidence/redact.js';
 import { createTrigger } from '../evidence/trigger.js';
 import type { Flow, FlowContext } from '../flow/define-flow.js';
@@ -103,13 +104,16 @@ export async function runFlow(
     });
     const trigger = recordingTrigger(rawTrigger, (entry) => triggers.push(entry));
 
-    const rawEvidence = createEvidence(services, fireOffsets);
+    const rawEvidence = createEvidence(services, fireOffsets, config.defaultPollOptions);
     const evidence = recordingEvidence(rawEvidence, (entry) => assertions.push(entry));
 
-    const poll = recordingPoll((entry) => assertions.push(entry));
+    const defaultedPoll: typeof rawPollFn = (condition, options) =>
+      rawPollFn(condition, mergePollOptions(config.defaultPollOptions, options));
+    const poll = recordingPoll(defaultedPoll, (entry) => assertions.push(entry));
 
     const { values: fixtures, teardown: teardownFlowFixtures } = await resolver.resolveForFlow(
       flow.fixtures ?? [],
+      { trigger, evidence },
     );
 
     try {

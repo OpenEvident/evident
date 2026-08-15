@@ -6,7 +6,12 @@
  * calls — exposed here too since a flow can call it directly to exercise
  * menu-service's restart-resilient batch processing in isolation.
  */
-import type { Evidence, Trigger, WaitForOptions } from 'evident';
+import {
+  defineServiceClientFixture,
+  type Evidence,
+  type Trigger,
+  type WaitForOptions,
+} from 'evident';
 
 export interface CurrencyBody {
   id: string;
@@ -180,7 +185,7 @@ export function getBulkStatus(trigger: Trigger, batchId: string) {
 type Opts = Pick<WaitForOptions, 'delay' | 'expectBy' | 'timeout'>;
 
 /** `product.saved` — fires on both CREATE and UPDATE; `action` disambiguates which. */
-export function expectProductSaved(evidence: Evidence, externalId: string, action: 'CREATE' | 'UPDATE', options: Opts) {
+export function expectProductSaved(evidence: Evidence, externalId: string, action: 'CREATE' | 'UPDATE', options: Opts = {}) {
   return evidence.logs('menu-service').waitFor(`${action === 'CREATE' ? 'created' : 'updated'} product`, {
     matchOn: [
       { field: 'externalId', value: externalId },
@@ -192,7 +197,7 @@ export function expectProductSaved(evidence: Evidence, externalId: string, actio
 }
 
 /** `menu.updates_available` — a PUBLISHED menu got flagged stale by a product change; never auto-republished. */
-export function expectMenuUpdatesAvailable(evidence: Evidence, menuId: string, options: Opts) {
+export function expectMenuUpdatesAvailable(evidence: Evidence, menuId: string, options: Opts = {}) {
   return evidence.logs('menu-service').waitFor(`menu ${menuId} flagged stale`, {
     matchOn: [
       { field: 'menuId', value: menuId },
@@ -203,7 +208,7 @@ export function expectMenuUpdatesAvailable(evidence: Evidence, menuId: string, o
 }
 
 /** `menu.products_attached` — the manual, deliberate assembly action. */
-export function expectProductsAttached(evidence: Evidence, menuId: string, categoryId: string, options: Opts) {
+export function expectProductsAttached(evidence: Evidence, menuId: string, categoryId: string, options: Opts = {}) {
   return evidence.logs('menu-service').waitFor(`attached`, {
     matchOn: [
       { field: 'menuId', value: menuId },
@@ -215,7 +220,7 @@ export function expectProductsAttached(evidence: Evidence, menuId: string, categ
 }
 
 /** `batch.recovery.resumed` — only ever fires on menu-service's own startup, if a batch was left mid-flight. */
-export function expectBatchRecoveryResumed(evidence: Evidence, batchId: string, options: Opts) {
+export function expectBatchRecoveryResumed(evidence: Evidence, batchId: string, options: Opts = {}) {
   return evidence.logs('menu-service').waitFor(`resuming`, {
     matchOn: [
       { field: 'batchId', value: batchId },
@@ -224,3 +229,57 @@ export function expectBatchRecoveryResumed(evidence: Evidence, batchId: string, 
     ...options,
   });
 }
+
+export interface MenuServiceClient {
+  listCurrencies: (code?: string) => ReturnType<typeof listCurrencies>;
+  listCountries: () => ReturnType<typeof listCountries>;
+  listTaxes: (name?: string, percentage?: number) => ReturnType<typeof listTaxes>;
+  listProducts: (status?: 'ACTIVE' | 'INACTIVE') => ReturnType<typeof listProducts>;
+  createMenu: (body: CreateMenuRequest) => ReturnType<typeof createMenu>;
+  attachProducts: (menuId: string, categoryId: string, productIds: string[]) => ReturnType<typeof attachProducts>;
+  publishMenu: (menuId: string) => ReturnType<typeof publishMenu>;
+  getMenu: (menuId: string) => ReturnType<typeof getMenu>;
+  dispatchProductsBulk: (
+    partnerId: string,
+    syncId: string,
+    items: BulkProductItem[],
+    simulateItemDelayMs?: number,
+  ) => ReturnType<typeof dispatchProductsBulk>;
+  getBulkStatus: (batchId: string) => ReturnType<typeof getBulkStatus>;
+  expectProductSaved: (
+    externalId: string,
+    action: 'CREATE' | 'UPDATE',
+    options?: Opts,
+  ) => ReturnType<typeof expectProductSaved>;
+  expectMenuUpdatesAvailable: (menuId: string, options?: Opts) => ReturnType<typeof expectMenuUpdatesAvailable>;
+  expectProductsAttached: (
+    menuId: string,
+    categoryId: string,
+    options?: Opts,
+  ) => ReturnType<typeof expectProductsAttached>;
+  expectBatchRecoveryResumed: (batchId: string, options?: Opts) => ReturnType<typeof expectBatchRecoveryResumed>;
+}
+
+/** Binds this file's plain functions to one Flow's own `trigger`/`evidence` — see `bulkImportClientFixture`'s doc comment for the pattern this follows. */
+export const menuServiceClientFixture = defineServiceClientFixture<'menuService', MenuServiceClient>(
+  'menuService',
+  ({ trigger, evidence }: { trigger: Trigger; evidence: Evidence }) => ({
+    listCurrencies: (code) => listCurrencies(trigger, code),
+    listCountries: () => listCountries(trigger),
+    listTaxes: (name, percentage) => listTaxes(trigger, name, percentage),
+    listProducts: (status) => listProducts(trigger, status),
+    createMenu: (body) => createMenu(trigger, body),
+    attachProducts: (menuId, categoryId, productIds) => attachProducts(trigger, menuId, categoryId, productIds),
+    publishMenu: (menuId) => publishMenu(trigger, menuId),
+    getMenu: (menuId) => getMenu(trigger, menuId),
+    dispatchProductsBulk: (partnerId, syncId, items, simulateItemDelayMs) =>
+      dispatchProductsBulk(trigger, partnerId, syncId, items, simulateItemDelayMs),
+    getBulkStatus: (batchId) => getBulkStatus(trigger, batchId),
+    expectProductSaved: (externalId, action, options) =>
+      expectProductSaved(evidence, externalId, action, options),
+    expectMenuUpdatesAvailable: (menuId, options) => expectMenuUpdatesAvailable(evidence, menuId, options),
+    expectProductsAttached: (menuId, categoryId, options) =>
+      expectProductsAttached(evidence, menuId, categoryId, options),
+    expectBatchRecoveryResumed: (batchId, options) => expectBatchRecoveryResumed(evidence, batchId, options),
+  }),
+);

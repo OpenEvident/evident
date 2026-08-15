@@ -1,3 +1,5 @@
+import './evidence/custom-matchers.js';
+
 export { expect } from 'expect';
 
 export { parseDuration } from './evidence/duration.js';
@@ -28,13 +30,20 @@ export type {
   WaitForResult,
 } from './evidence/evidence.js';
 
+export { extractBoolean, extractNumber, extractString } from './evidence/extract.js';
+
 export { redactPii, redactText, redactValue } from './evidence/redact.js';
+
+export { findItem, requireDefined } from './require.js';
 
 export { defineFlow } from './flow/define-flow.js';
 export type { Flow, FlowContext, FlowDefinition, SafetyLevel } from './flow/define-flow.js';
 
 export { defineFixture } from './flow/fixture.js';
 export type { Fixture, FixtureContext } from './flow/fixture.js';
+
+export { defineServiceClientFixture } from './flow/service-client-fixture.js';
+export type { ServiceClientContext } from './flow/service-client-fixture.js';
 
 export {
   afterAll,

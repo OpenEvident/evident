@@ -35,7 +35,11 @@ describe('findMatches', () => {
       1,
     );
 
-    expect(result).toEqual({ matchedVia: 'structured-field', matchCount: 1 });
+    expect(result).toEqual({
+      matchedVia: 'structured-field',
+      matchCount: 1,
+      record: { recordId: 'r1', eventType: 'order.created', msg: 'processed record r1' },
+    });
   });
 
   it('does not fall back to substring when a JSON line has some but not all matchOn fields', () => {
@@ -64,7 +68,11 @@ describe('findMatches', () => {
       1,
     );
 
-    expect(result).toEqual({ matchedVia: 'trace-id', matchCount: 1 });
+    expect(result).toEqual({
+      matchedVia: 'trace-id',
+      matchCount: 1,
+      record: { recordId: 'r1', trace_id: 'abc123', msg: 'processed record r1' },
+    });
   });
 
   it('ignores an empty trace_id field, still reporting structured-field', () => {
@@ -77,7 +85,11 @@ describe('findMatches', () => {
       1,
     );
 
-    expect(result).toEqual({ matchedVia: 'structured-field', matchCount: 1 });
+    expect(result).toEqual({
+      matchedVia: 'structured-field',
+      matchCount: 1,
+      record: { recordId: 'r1', trace_id: '', msg: 'processed record r1' },
+    });
   });
 
   it('reports the strongest matchedVia across multiple matching lines when expectedMatches allows it', () => {
@@ -93,7 +105,11 @@ describe('findMatches', () => {
       'any',
     );
 
-    expect(result).toEqual({ matchedVia: 'trace-id', matchCount: 2 });
+    expect(result).toEqual({
+      matchedVia: 'trace-id',
+      matchCount: 2,
+      record: { recordId: 'r1', trace_id: 'abc123', msg: 'processed record r1' },
+    });
   });
 
   it('throws DuplicateMatchError when more than expectedMatches lines match and matchOn is declared', () => {
@@ -124,7 +140,11 @@ describe('findMatches', () => {
 
     const result = findMatches(text, 'irrelevant', [{ field: 'recordId', value: 'r1' }], 'any');
 
-    expect(result).toEqual({ matchedVia: 'structured-field', matchCount: 3 });
+    expect(result).toEqual({
+      matchedVia: 'structured-field',
+      matchCount: 3,
+      record: { recordId: 'r1', msg: 'a' },
+    });
   });
 
   it('DuplicateMatchError carries matchCount and expectedMatches', () => {
@@ -149,6 +169,51 @@ describe('findMatches', () => {
     const result = findMatches('\n\nprocessed record r1\n\n', 'processed record r1', undefined, 1);
 
     expect(result).toEqual({ matchedVia: 'substring', matchCount: 1 });
+  });
+
+  it('returns the parsed JSON payload for a structured-field match', () => {
+    const text = '{"recordId":"r1","productId":"p-42","msg":"processed record r1"}';
+
+    const result = findMatches(
+      text,
+      'processed record r1',
+      [{ field: 'recordId', value: 'r1' }],
+      1,
+    );
+
+    expect(result?.record).toEqual({
+      recordId: 'r1',
+      productId: 'p-42',
+      msg: 'processed record r1',
+    });
+  });
+
+  it('omits record for a plain substring match', () => {
+    const result = findMatches('processed record r1', 'processed record r1', undefined, 1);
+
+    expect(result?.record).toBeUndefined();
+  });
+
+  it('returns the strongest match’s own record, not an earlier weaker match’s', () => {
+    const text = [
+      'processed record r1',
+      '{"recordId":"r1","productId":"p-42","trace_id":"abc123","msg":"processed record r1"}',
+    ].join('\n');
+
+    const result = findMatches(
+      text,
+      'processed record r1',
+      [{ field: 'recordId', value: 'r1' }],
+      'any',
+    );
+
+    expect(result?.matchedVia).toBe('trace-id');
+    expect(result?.record).toEqual({
+      recordId: 'r1',
+      productId: 'p-42',
+      trace_id: 'abc123',
+      msg: 'processed record r1',
+    });
   });
 
   it('treats a JSON array line as non-object, falling back to substring', () => {

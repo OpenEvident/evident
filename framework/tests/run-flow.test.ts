@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EvidentConfig } from '../src/config.js';
 import { defineFlow } from '../src/flow/define-flow.js';
+import { defineFixture } from '../src/flow/fixture.js';
 import { runFlow } from '../src/run/run-flow.js';
 
 let dir: string;
@@ -236,6 +237,51 @@ describe('runFlow', () => {
     expect(bundle.assertions[0]?.error).toBeTruthy();
   }, 2000);
 
+  it("lets a Flow-scoped fixture use the Flow's own trigger to build a bound service client", async () => {
+    stubFetch(200, { recordId: 'r1', status: 'imported' });
+
+    const importClientFixture = defineFixture<{
+      importProduct: (recordId: string) => Promise<{ status: number }>;
+    }>({
+      scope: 'flow',
+      async setup(_deps, { use, trigger }) {
+        await use({
+          importProduct: async (recordId: string) => {
+            const res = await trigger?.api('caller-service', {
+              method: 'POST',
+              path: '/trigger',
+              body: { recordId },
+            });
+            return { status: res?.status ?? 0 };
+          },
+        });
+      },
+    });
+
+    const flow = defineFlow({
+      name: 'run-flow-fixture-bound-client',
+      services: ['caller-service'],
+      safety: 'safe',
+      correlation: 'heuristic',
+      fixtures: [importClientFixture],
+      async run({ fixtures }) {
+        const result = await fixtures.importProduct('r1');
+        expect(result.status).toBe(200);
+      },
+    });
+
+    const bundle = await runFlow(flow, config());
+
+    expect(bundle.outcome).toBe('pass');
+    // The fixture's trigger call went through the real, recording trigger —
+    // it shows up in the bundle exactly like a call made from run() itself.
+    expect(bundle.triggers).toHaveLength(1);
+    expect(bundle.triggers[0]).toMatchObject({
+      service: 'caller-service',
+      request: { method: 'POST', path: '/trigger', body: { recordId: 'r1' } },
+    });
+  });
+
   it('throws immediately for an infrastructure error (unresolvable service), before any bundle is built', async () => {
     const flow = defineFlow({
       name: 'run-flow-bad-config',
@@ -308,6 +354,39 @@ describe('runFlow', () => {
     expect(bundle.outcome).toBe('fail');
     expect(bundle.triggers).toHaveLength(3);
   });
+
+  it('applies config.defaultPollOptions to a Flow’s direct poll(...) call', async () => {
+    stubFetch(200, { recordId: 'r1' });
+
+    const flow = defineFlow({
+      name: 'run-flow-default-poll-options',
+      services: ['caller-service'],
+      safety: 'safe',
+      correlation: 'heuristic',
+      async run({ trigger, poll }) {
+        await trigger.api('caller-service', {
+          method: 'POST',
+          path: '/trigger',
+          body: { recordId: 'r1' },
+        });
+        // No expectBy/timeout passed — must come from config.defaultPollOptions,
+        // not poll()'s own 5s/30s fallback, or this test would hang for 30s.
+        await poll(() => {
+          throw new Error('never passes');
+        });
+      },
+    });
+
+    const configWithDefaults: EvidentConfig = {
+      ...config(),
+      defaultPollOptions: { timeout: '80ms' },
+    };
+    const start = Date.now();
+    const bundle = await runFlow(flow, configWithDefaults);
+
+    expect(bundle.outcome).toBe('fail');
+    expect(Date.now() - start).toBeLessThan(1000);
+  }, 2000);
 
   it('fails when the Flow exceeds its own timeout ceiling', async () => {
     const flow = defineFlow({

@@ -1,11 +1,23 @@
+import type { Evidence } from '../evidence/evidence.js';
+import type { Trigger } from '../evidence/trigger.js';
 import type { Fixture } from './fixture.js';
+
+/** The running Flow's `trigger`/`evidence`, passed to `scope: 'flow'` Fixtures only (see fixture.ts's `FixtureContext` doc for why). */
+export interface FixtureRunContext {
+  trigger: Trigger;
+  evidence: Evidence;
+}
 
 interface ResolvedFixture {
   value: unknown;
   teardown: () => Promise<void>;
 }
 
-function runFixture<T, Deps>(fixture: Fixture<T, Deps>, deps: Deps): Promise<ResolvedFixture> {
+function runFixture<T, Deps>(
+  fixture: Fixture<T, Deps>,
+  deps: Deps,
+  runContext: FixtureRunContext,
+): Promise<ResolvedFixture> {
   let resolveReady!: (value: T) => void;
   const ready = new Promise<T>((resolve) => {
     resolveReady = resolve;
@@ -21,6 +33,9 @@ function runFixture<T, Deps>(fixture: Fixture<T, Deps>, deps: Deps): Promise<Res
       resolveReady(value);
       await canTeardown;
     },
+    ...(fixture.scope === 'flow'
+      ? { trigger: runContext.trigger, evidence: runContext.evidence }
+      : {}),
   });
 
   return ready.then((value) => ({
@@ -55,33 +70,45 @@ export class FixtureResolver {
   private async resolveOne(
     fixture: Fixture<unknown>,
     flowScoped: ResolvedFixture[],
+    runContext: FixtureRunContext,
   ): Promise<unknown> {
     if (fixture.scope === 'suite') {
       const cached = this.suiteScoped.get(fixture);
       if (cached) {
         return cached.value;
       }
-      const deps = fixture.deps ? await this.resolveOne(fixture.deps, flowScoped) : undefined;
-      const resolved = await runFixture(fixture, deps);
+      const deps = fixture.deps
+        ? await this.resolveOne(fixture.deps, flowScoped, runContext)
+        : undefined;
+      const resolved = await runFixture(fixture, deps, runContext);
       this.suiteScoped.set(fixture, resolved);
       return resolved.value;
     }
 
-    const deps = fixture.deps ? await this.resolveOne(fixture.deps, flowScoped) : undefined;
-    const resolved = await runFixture(fixture, deps);
+    const deps = fixture.deps
+      ? await this.resolveOne(fixture.deps, flowScoped, runContext)
+      : undefined;
+    const resolved = await runFixture(fixture, deps, runContext);
     flowScoped.push(resolved);
     return resolved.value;
   }
 
-  /** Resolves every Fixture a single Flow requests, merging their values into one object. */
+  /**
+   * Resolves every Fixture a single Flow requests, merging their values
+   * into one object. `runContext` is that Flow's own `trigger`/`evidence` —
+   * only ever handed to a `scope: 'flow'` Fixture's `setup` (see
+   * `FixtureContext`'s doc comment for why a Suite-scoped Fixture never
+   * gets them).
+   */
   async resolveForFlow(
     fixtures: readonly Fixture<unknown>[],
+    runContext: FixtureRunContext,
   ): Promise<{ values: Record<string, unknown>; teardown: () => Promise<void> }> {
     const flowScoped: ResolvedFixture[] = [];
     let values: Record<string, unknown> = {};
 
     for (const fixture of fixtures) {
-      const value = await this.resolveOne(fixture, flowScoped);
+      const value = await this.resolveOne(fixture, flowScoped, runContext);
       values = mergeFixtureValue(values, value);
     }
 
