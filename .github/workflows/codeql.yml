@@ -25,10 +25,7 @@ jobs:
         with:
           languages: javascript-typescript
           build-mode: none
-          # examples/ is proof-of-concept demo code exercising the
-          # framework, not the framework itself, and never ships to users.
-          paths:
-            - framework
+          config-file: ./.github/codeql/codeql-config.yml
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v4

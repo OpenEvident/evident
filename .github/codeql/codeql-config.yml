@@ -1,0 +1,12 @@
+name: Evident CodeQL config
+
+# Nothing here needs excluding for a broken-parser reason, framework/ is all
+# real TypeScript, no scaffold/template files with substitution syntax.
+# This just scopes analysis to the framework itself (examples/ is
+# proof-of-concept demo code exercising the framework, not the published
+# package) and opts into a broader query suite than CodeQL's default pack.
+paths:
+  - framework
+
+queries:
+  - uses: security-extended
