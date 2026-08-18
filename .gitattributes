@@ -1,0 +1,2 @@
+# Normalize line endings to LF everywhere, regardless of platform/core.autocrlf settings.
+* text=auto eol=lf

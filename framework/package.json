@@ -4,7 +4,15 @@
   "description": "AI-driven multi-service verification framework — used by coding agents as a tool, not an agent itself.",
   "type": "module",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OpenEvident/evident.git",
+    "directory": "framework"
+  },
+  "homepage": "https://github.com/OpenEvident/evident#readme",
+  "bugs": "https://github.com/OpenEvident/evident/issues",
+  "author": "Pasindu Lakshan",
   "engines": {
     "node": ">=24"
   },

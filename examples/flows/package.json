@@ -1,7 +1,7 @@
 {
   "name": "evident-examples",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "type": "module",
   "description": "Proof-of-concept flow specs — not a workspace member, not part of the published framework. See docs/architecture.md Decision 20.",
   "scripts": {

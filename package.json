@@ -1,6 +1,14 @@
 {
   "name": "evident-monorepo",
   "private": true,
-  "license": "UNLICENSED",
+  "description": "AI-driven multi-service verification framework, plus the example services and flow specs that prove it end to end.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OpenEvident/evident.git"
+  },
+  "homepage": "https://github.com/OpenEvident/evident#readme",
+  "bugs": "https://github.com/OpenEvident/evident/issues",
+  "author": "Pasindu Lakshan",
   "packageManager": "pnpm@11.20.0"
 }
