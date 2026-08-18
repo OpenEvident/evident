@@ -1,9 +1,14 @@
 version: 2
 updates:
-  # The framework is the published product; root has no dependencies of
-  # its own and examples/ is proof-of-concept demo code, not the framework.
+  # Points at the pnpm workspace root, not /framework directly, even
+  # though framework is the only real dependency-bearing package (root
+  # has none of its own, examples/ isn't tracked here). The shared
+  # pnpm-lock.yaml lives at the workspace root; pointing this at
+  # /framework instead made Dependabot bump framework/package.json
+  # without updating the lockfile, which every "Verify framework" CI
+  # run then rejected as an out-of-date lockfile.
   - package-ecosystem: "npm"
-    directory: "/framework"
+    directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
