@@ -2,3 +2,8 @@ packages:
   - "framework"
 minimumReleaseAgeExclude:
   - eslint@10.8.1
+overrides:
+  # GHSA-2v37-7h3g-55p8: nanoid < 3.3.18 has an infinite loop in
+  # customAlphabet/customRandom when called with size 0. Transitive only
+  # (vitest -> vite -> postcss -> nanoid), never a direct dependency.
+  nanoid: ">=3.3.18"
