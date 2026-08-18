@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # The framework is the published product; root has no dependencies of
+  # its own and examples/ is proof-of-concept demo code, not the framework.
+  - package-ecosystem: "npm"
+    directory: "/framework"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
