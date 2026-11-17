@@ -42,7 +42,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "commander": "15.0.0",
+    "commander": "15.1.0",
     "expect": "30.4.1"
   },
   "devDependencies": {
